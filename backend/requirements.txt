@@ -1,0 +1,49 @@
+# ── Web Framework ────────────────────────────────
+fastapi
+uvicorn[standard]
+python-multipart
+
+# ── Database ─────────────────────────────────────
+sqlalchemy[asyncio]
+asyncpg
+alembic
+
+# ── Redis ─────────────────────────────────────────
+redis[asyncio]
+hiredis
+
+# ── Validation & Settings ────────────────────────
+pydantic
+pydantic-settings
+email-validator
+
+# ── Auth ─────────────────────────────────────────
+python-jose[cryptography]
+bcrypt
+# passlib[bcrypt] removed – incompatible with bcrypt 4+/5+ (missing __about__)
+
+# ── LangChain & LangGraph ────────────────────────
+langchain
+langchain-core
+langchain-community
+langchain-openai
+langchain-ollama
+langgraph
+
+# ── Observability ─────────────────────────────────
+langfuse
+
+# ── Eval Frameworks (placeholders - install when needed) ─
+# deepeval
+# ragas
+
+# ── Image Processing ─────────────────────────────
+pillow
+
+# ── HTTP Client ──────────────────────────────────
+httpx
+
+# ── Utilities ─────────────────────────────────────
+python-dotenv
+aiofiles
+tenacity
