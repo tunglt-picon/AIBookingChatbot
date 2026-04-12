@@ -6,21 +6,16 @@ Endpoints:
   POST   /sessions                         – create a new session
   GET    /sessions                         – list patient sessions
   GET    /sessions/{id}                    – get session + message history
-  POST   /sessions/{id}/messages           – send a message (multipart: text + optional image)
-                                             Returns: StreamingResponse (SSE)
+  POST   /sessions/{id}/messages           – send text (multipart); Returns: SSE stream
   POST   /sessions/{id}/close              – mark session COMPLETED
 """
 
-import base64
 import json
 import logging
-import os
 import time
-import uuid
 from typing import Optional
 
-import aiofiles
-from fastapi import APIRouter, Depends, File, Form, Header, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, Form, Header, HTTPException, status
 from fastapi.responses import StreamingResponse
 from jose import JWTError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -30,8 +25,6 @@ from app.database import get_db
 from app.models.session import SenderType, SessionStatus
 from app.schemas.chat import MessageResponse, SessionResponse, SessionWithMessages
 from app.services import auth_service, chat_service
-from app.services.redis_service import cache_image, get_cached_image
-
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
@@ -110,27 +103,6 @@ async def get_current_user(
     return user
 
 
-# ── Helpers ────────────────────────────────────────────────────────────────────
-
-async def _save_upload(file: UploadFile) -> tuple[str, str]:
-    """Save uploaded image to disk; return (relative_url, mime_type)."""
-    ext = os.path.splitext(file.filename or "")[1].lower() or ".jpg"
-    filename = f"{uuid.uuid4().hex}{ext}"
-    filepath = os.path.join(settings.UPLOAD_DIR, filename)
-    os.makedirs(settings.UPLOAD_DIR, exist_ok=True)
-
-    content = await file.read()
-    if len(content) > settings.max_upload_bytes:
-        raise HTTPException(
-            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
-            detail=f"File exceeds {settings.MAX_UPLOAD_SIZE_MB} MB limit.",
-        )
-    async with aiofiles.open(filepath, "wb") as f:
-        await f.write(content)
-
-    return f"/uploads/{filename}", content, file.content_type or "image/jpeg"
-
-
 # ── Route: Create Session ──────────────────────────────────────────────────────
 
 @router.post("/sessions", response_model=SessionResponse, status_code=status.HTTP_201_CREATED)
@@ -180,7 +152,6 @@ async def send_message(
     session_id: int,
     message: str = Form(...),
     authorization: str = Form(...),
-    image: Optional[UploadFile] = File(default=None),
     db: AsyncSession = Depends(get_db),
 ):
     """
@@ -189,7 +160,6 @@ async def send_message(
     Multipart form fields:
       - message       : user text
       - authorization : Bearer <token>
-      - image         : optional dental image (JPEG/PNG, max 10 MB)
     """
     token = _extract_token(authorization)
     user = await get_current_user(token, db)
@@ -200,35 +170,17 @@ async def send_message(
     if session.status != SessionStatus.PROCESSING:
         raise HTTPException(status_code=400, detail="Session is no longer active.")
 
-    # ── Handle image upload ────────────────────────────────────────────────
-    image_url: Optional[str] = None
-    image_base64: Optional[str] = None
-    image_mime: str = "image/jpeg"
-
-    if image and image.filename:
-        image_url, raw_bytes, image_mime = await _save_upload(image)
-        image_base64 = base64.b64encode(raw_bytes).decode("utf-8")
-        await cache_image(session_id, image_base64, image_mime)
-
-    # If no new image but one was cached from a previous turn, re-use it
-    if not image_base64:
-        cached = await get_cached_image(session_id)
-        if cached:
-            image_base64 = cached["base64"]
-            image_mime = cached["mime_type"]
-
     # ── Persist user message ───────────────────────────────────────────────
     await chat_service.save_message(
-        db, session_id, SenderType.PATIENT_USER, message, image_url
+        db, session_id, SenderType.PATIENT_USER, message, None
     )
 
     preview = (message[:120] + "…") if len(message) > 120 else message
     logger.info(
-        "[chat] send_message session_id=%s patient_user_id=%s text_len=%s image=%s preview=%r",
+        "[chat] send_message session_id=%s patient_user_id=%s text_len=%s preview=%r",
         session_id,
         user.id,
         len(message),
-        bool(image_base64),
         preview,
     )
 
@@ -237,8 +189,6 @@ async def send_message(
             session_id=session_id,
             patient_user_id=user.id,
             user_message=message,
-            image_base64=image_base64,
-            image_mime=image_mime,
             db=db,
         ),
         media_type="text/event-stream",
@@ -273,8 +223,6 @@ async def _stream_agent_response(
     session_id: int,
     patient_user_id: int,
     user_message: str,
-    image_base64: Optional[str],
-    image_mime: str,
     db: AsyncSession,
 ):
     """
@@ -295,8 +243,6 @@ async def _stream_agent_response(
         "messages": [HumanMessage(content=user_message)],
         "session_id": session_id,
         "patient_user_id": patient_user_id,
-        "image_base64": image_base64,
-        "image_mime_type": image_mime,
     }
 
     full_response = ""

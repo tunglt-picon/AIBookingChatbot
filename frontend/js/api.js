@@ -115,21 +115,19 @@ const ChatAPI = {
   },
 
   /**
-   * Send a message with optional image and stream the SSE response.
+   * Gửi tin nhắn văn bản và nhận SSE stream.
    *
    * @param {number}      sessionId
    * @param {string}      message
-   * @param {File|null}   imageFile
    * @param {object}      callbacks  { onToken, onStatus, onDone, onError }
    */
-  async sendMessage(sessionId, message, imageFile, callbacks = {}) {
+  async sendMessage(sessionId, message, callbacks = {}) {
     const token = Auth.getToken();
     if (!token) throw new APIError("Not authenticated", 401);
 
     const form = new FormData();
     form.append("message", message);
     form.append("authorization", `Bearer ${token}`);
-    if (imageFile) form.append("image", imageFile);
 
     const response = await fetch(`${API_BASE}/chat/sessions/${sessionId}/messages`, {
       method: "POST",
@@ -184,16 +182,53 @@ const ChatAPI = {
 /* ── Schedule endpoints ─────────────────────────────────────────────────── */
 
 const ScheduleAPI = {
-  async getSlots(date = null) {
-    const params = date ? `?date=${date}` : "";
-    return apiFetch(`/schedule/slots${params}`);
+  /**
+   * @param {string|null} date  YYYY-MM-DD
+   * @param {string|null} dentalCaseCode  CAVITY | IMPLANT | GINGIVITIS | SCALING | EMERGENCY
+   */
+  async getSlots(date = null, dentalCaseCode = null) {
+    const q = new URLSearchParams();
+    if (date) q.set("date", date);
+    if (dentalCaseCode) q.set("case", dentalCaseCode);
+    const suffix = q.toString() ? `?${q.toString()}` : "";
+    return apiFetch(`/schedule/slots${suffix}`);
   },
 
   async listReservations() {
     return apiFetch("/schedule/reservations");
   },
+
+  /** Lịch mock cả tuần (file JSON). */
+  async getWeekSlots(dentalCaseCode = null, weekStartIso = null) {
+    const q = new URLSearchParams();
+    if (dentalCaseCode) q.set("case", dentalCaseCode);
+    if (weekStartIso) q.set("week_start", weekStartIso);
+    const suffix = q.toString() ? `?${q.toString()}` : "";
+    return apiFetch(`/schedule/week/slots${suffix}`);
+  },
+};
+
+/* ── Admin lab (JWT) ───────────────────────────────────────────────────── */
+
+const AdminLabAPI = {
+  async invokeAgent(payload) {
+    return apiFetch("/admin/lab/agents/invoke", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  },
+  async invokeTool(payload) {
+    return apiFetch("/admin/lab/tools/invoke", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  },
+  /** Tóm tắt file mock lịch (không cần đăng nhập phía BE giai đoạn dev). */
+  async getMockScheduleSummary() {
+    return apiFetch("/admin/lab/mock-schedule-summary");
+  },
 };
 
 /* ── Exports (module-style) ──────────────────────────────────────────────── */
 
-window.DentalApp = { Auth, AuthAPI, ChatAPI, ScheduleAPI, APIError };
+window.DentalApp = { Auth, AuthAPI, ChatAPI, ScheduleAPI, AdminLabAPI, APIError };

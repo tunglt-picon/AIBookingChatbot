@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="vi" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Admin Lab – SmileCare AI</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          colors: { brand: { DEFAULT: "#38bdf8", dark: "#0ea5e9" } },
+          fontFamily: { sans: ["Inter", "system-ui", "sans-serif"] },
+        },
+      },
+    };
+  </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/custom.css" />
+  <script>
+    window.APP_CONFIG = window.APP_CONFIG || { apiBase: "http://localhost:8000/api/v1" };
+  </script>
+</head>
+<body class="bg-slate-900 text-slate-100 font-sans antialiased min-h-screen">
+  <header class="border-b border-slate-700/60 bg-slate-800/40 backdrop-blur sticky top-0 z-10">
+    <div class="max-w-[1680px] mx-auto px-4 sm:px-6 py-3 flex flex-wrap items-center gap-3">
+      <h1 class="text-lg font-semibold text-white">Phòng lab Admin</h1>
+      <span class="text-xs text-slate-500 hidden sm:inline">Agent · tool · tài liệu kiến trúc (lab dev)</span>
+      <div class="ml-auto flex items-center gap-2 sm:gap-3">
+        <a href="lab-architecture.html" class="text-sm text-cyan-400 hover:text-cyan-300"><span class="sm:hidden">Kiến trúc</span><span class="hidden sm:inline">Kiến trúc &amp; data flow</span></a>
+        <a href="lab-langgraph.html" class="text-sm text-violet-400 hover:text-violet-300"><span class="sm:hidden">Graph</span><span class="hidden sm:inline">LangGraph</span></a>
+        <a href="index.html" class="text-sm text-sky-400 hover:text-sky-300">← Về chat</a>
+        <button type="button" id="btn-admin-logout" class="text-sm text-slate-400 hover:text-red-400">Đăng xuất</button>
+      </div>
+    </div>
+  </header>
+
+  <div id="admin-gate" class="hidden max-w-lg mx-auto mt-16 px-4 text-center"></div>
+
+  <div id="admin-main" class="max-w-[1680px] mx-auto px-4 sm:px-6 py-6">
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-5 lg:gap-6">
+      <aside class="lg:col-span-12 xl:col-span-2 space-y-3 min-w-0">
+        <div>
+          <p class="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Agent (LLM)</p>
+          <div id="nav-agents" class="space-y-1"></div>
+        </div>
+        <div>
+          <p class="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Tool &amp; tiện ích</p>
+          <div id="nav-tools" class="space-y-1"></div>
+        </div>
+        <div>
+          <p class="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1.5">REST nhanh</p>
+          <div id="nav-rest" class="space-y-1"></div>
+        </div>
+        <div>
+          <p class="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Tài liệu</p>
+          <div class="space-y-1">
+            <a href="lab-architecture.html"
+              class="block w-full text-left px-2.5 py-1.5 rounded-lg text-xs text-cyan-400 hover:bg-cyan-500/10 hover:text-cyan-300 border border-transparent hover:border-cyan-500/25 transition-colors">
+              Kiến trúc &amp; data flow
+            </a>
+            <a href="lab-langgraph.html"
+              class="block w-full text-left px-2.5 py-1.5 rounded-lg text-xs text-violet-400 hover:bg-violet-500/15 hover:text-violet-300 border border-transparent hover:border-violet-500/25 transition-colors">
+              Sơ đồ LangGraph
+            </a>
+          </div>
+        </div>
+      </aside>
+
+      <main class="lg:col-span-12 xl:col-span-10 min-w-0">
+        <div class="grid grid-cols-1 xl:grid-cols-12 gap-5 xl:gap-6 items-start">
+          <div class="xl:col-span-8 space-y-5 min-w-0">
+            <div class="rounded-2xl border border-slate-700/60 bg-slate-800/50 p-5 sm:p-6 shadow-sm">
+              <div class="mb-5 pb-4 border-b border-slate-700/50">
+                <h2 id="panel-title" class="text-lg sm:text-xl font-semibold text-white tracking-tight">—</h2>
+                <p id="panel-desc" class="text-sm sm:text-base text-slate-400 mt-1.5 leading-relaxed">—</p>
+              </div>
+
+              <div class="mb-6 rounded-xl border border-slate-600/35 bg-slate-900/45 overflow-hidden">
+                <div class="px-4 py-2.5 bg-slate-800/70 border-b border-slate-700/50">
+                  <p class="text-sm font-semibold text-slate-200">Hướng dẫn</p>
+                  <p class="text-xs text-slate-500 mt-0.5">Đọc nhanh trước khi điền form và bấm Chạy</p>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 md:divide-x divide-slate-700/40">
+                  <div class="p-4 sm:p-5">
+                    <p class="text-xs font-bold uppercase tracking-wide text-emerald-400/95 mb-3 flex items-center gap-2">
+                      <span class="inline-flex h-6 w-6 items-center justify-center rounded-md bg-emerald-500/15 text-emerald-300 text-[11px] font-mono">IN</span>
+                      Đầu vào cần có
+                    </p>
+                    <div id="panel-input-doc"></div>
+                  </div>
+                  <div class="p-4 sm:p-5 border-t border-slate-700/40 md:border-t-0">
+                    <p class="text-xs font-bold uppercase tracking-wide text-amber-400/95 mb-3 flex items-center gap-2">
+                      <span class="inline-flex h-6 w-6 items-center justify-center rounded-md bg-amber-500/15 text-amber-200 text-[11px] font-mono">OUT</span>
+                      Đầu ra / kết quả
+                    </p>
+                    <div id="panel-output-doc"></div>
+                  </div>
+                </div>
+              </div>
+
+              <div id="panel-agent-extras" class="hidden mb-6 space-y-4"></div>
+
+              <div id="panel-form" class="space-y-4"></div>
+
+              <div class="mt-6 pt-5 border-t border-slate-700/50 flex flex-wrap gap-3">
+                <button type="button" id="btn-run" class="px-5 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-500 text-white text-sm font-semibold disabled:opacity-50 shadow-md shadow-sky-900/20">
+                  Chạy
+                </button>
+                <button type="button" id="btn-clear-result" class="px-5 py-2.5 rounded-xl bg-slate-700/90 hover:bg-slate-600 text-slate-100 text-sm font-medium border border-slate-600/60">
+                  Xóa kết quả
+                </button>
+              </div>
+            </div>
+
+            <div class="rounded-2xl border border-slate-700/60 bg-slate-800/50 p-5 sm:p-6">
+              <div class="flex items-center justify-between mb-3">
+                <p class="text-sm font-semibold text-slate-100">Kết quả</p>
+                <span id="result-meta" class="text-xs text-slate-500 tabular-nums"></span>
+              </div>
+              <pre id="result-json" class="text-[13px] leading-relaxed font-mono text-slate-300 bg-slate-950/90 border border-slate-800 rounded-xl p-4 sm:p-5 overflow-x-auto max-h-[min(52vh,560px)] overflow-y-auto whitespace-pre-wrap">{}</pre>
+            </div>
+          </div>
+
+          <div class="xl:col-span-4 min-w-0">
+            <div id="mock-summary-panel"
+              class="rounded-2xl border border-amber-500/25 bg-gradient-to-b from-amber-950/25 to-slate-900/50 p-4 sm:p-4 shadow-md xl:sticky xl:top-20 max-xl:max-w-2xl">
+              <div class="flex items-center justify-between gap-2 mb-3">
+                <div>
+                  <p class="text-sm font-semibold text-amber-100">Dữ liệu mock (đối chiếu)</p>
+                  <p class="text-[11px] text-amber-200/50 mt-0.5">So với kết quả tool / API lịch</p>
+                </div>
+                <button type="button" id="btn-refresh-mock"
+                  class="shrink-0 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-slate-700/80 hover:bg-slate-600 text-sky-300 border border-slate-600/80">
+                  Làm mới
+                </button>
+              </div>
+              <div id="mock-summary-content" class="text-sm text-slate-300">
+                <p class="text-xs text-slate-500 animate-pulse">Đang tải…</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <script src="js/api.js"></script>
+  <script src="js/admin.js"></script>
+</body>
+</html>

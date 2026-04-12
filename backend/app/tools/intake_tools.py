@@ -17,6 +17,7 @@ async def save_consult_intake(
     symptoms: str,
     ai_diagnosis: str,
     needs_visit: bool,
+    dental_case_code: str | None = None,
 ) -> str:
     """
     Save a booking consult intake (symptoms text + intake summary fields) to the database.
@@ -47,6 +48,7 @@ async def save_consult_intake(
             symptoms=symptoms,
             ai_diagnosis=ai_diagnosis,
             needs_visit=needs_visit,
+            dental_case_code=dental_case_code,
         )
         db.add(intake)
         await db.commit()

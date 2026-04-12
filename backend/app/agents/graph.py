@@ -12,7 +12,7 @@ Node flow (per user message turn):
     ├─► "consultation"
     │      │
     │      ▼
-    │   dental_specialist  ← Dental Specialist (VLM)
+    │   dental_specialist  ← Dental Specialist (text)
     │      │
     │      ├─► needs_visit=False → END  (return follow-up question to user)
     │      │
@@ -34,7 +34,7 @@ Node flow (per user message turn):
     │      │
     │      ├─► (no intake or no slots yet)
     │      │      ▼
-    │      │   booking_prepare ← walk-in intake + get_available_slots
+    │      │   booking_prepare ← walk-in intake + get_mock_schedule
     │      │      │
     │      │      ▼
     │      └────► confirm_booking  ← parse chosen slot, write Reservation to DB
@@ -87,6 +87,13 @@ def _route_after_intent(state: AgentState) -> str:
         logger.info("[graph][route] after classify_intent session_id=%s -> confirm_booking (confirm_appointment)", sid)
         return "confirm_booking"
     elif intent == "select_slot":
+        if not state.get("triage_complete"):
+            logger.info(
+                "[graph][route] after classify_intent session_id=%s -> dental_specialist "
+                "(select_slot without triage)",
+                sid,
+            )
+            return "dental_specialist"
         has_prereqs = bool(state.get("intake_id")) and bool(state.get("available_slots"))
         if has_prereqs:
             logger.info("[graph][route] after classify_intent session_id=%s -> confirm_booking", sid)

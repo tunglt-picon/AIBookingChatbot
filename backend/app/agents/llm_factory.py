@@ -7,8 +7,7 @@ Supports:
   - "openai_compatible" → ChatOpenAI with custom base_url
                           (Together.ai, vLLM, LM Studio, Groq, …)
 
-Both Root Orchestrator (text) and Dental Specialist (vision/VLM) are
-configured here. Swap the model names in .env without touching agent code.
+Root Orchestrator và Dental Specialist đều dùng **chat văn bản**; cấu hình model trong .env.
 """
 
 import logging
@@ -125,7 +124,7 @@ def get_root_llm() -> BaseChatModel:
 def get_specialist_llm() -> BaseChatModel:
     model = create_llm("specialist")
     logger.info(
-        "[llm] specialist (VLM) model ready provider=%s",
+        "[llm] specialist (text) model ready provider=%s",
         settings.LLM_PROVIDER,
     )
     return model

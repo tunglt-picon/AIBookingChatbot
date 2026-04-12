@@ -11,6 +11,7 @@ Responsibilities:
 
 import json
 import logging
+import re
 import time
 from typing import Any
 
@@ -106,6 +107,25 @@ def _default_next_weekday_iso() -> str:
     return d.isoformat()
 
 
+def _looks_like_booking_intent(text: str) -> bool:
+    """Bệnh nhân muốn hẹn giờ/ngày khám nhưng chưa mô tả triệu chứng (heuristic)."""
+    low = text.lower().strip()
+    if len(low) > 160:
+        return False
+    keys = (
+        "đặt lịch", "dat lich", "book", "hẹn khám", "hen kham",
+        "lịch khám", "lich kham", "đặt hẹn", "dat hen",
+        "muốn khám", "muon kham", "chọn giờ", "chon gio",
+    )
+    if any(k in low for k in keys):
+        return True
+    if "ngày mai" in low or "ngay mai" in low:
+        return True
+    if re.search(r"thứ\s+[2-7]", low) or re.search(r"thu\s+[2-7]", low):
+        return True
+    return False
+
+
 # ── Intent Classification ─────────────────────────────────────────────────────
 
 _INTENT_SYSTEM = """\
@@ -120,9 +140,14 @@ và phân loại thành MỘT trong các nhãn sau:
 
 Ngữ cảnh hiện tại:
   - Cuộc tư vấn đang diễn ra: {has_consultation}
+  - Đã hoàn tất tiếp nhận triệu chứng + phân loại (được phép chọn giờ): {triage_complete}
   - Đã hiển thị khung giờ: {has_slots}
   - Số câu hỏi làm rõ đã hỏi: {follow_up_count}/{max_follow_ups}
   - Đang chờ bệnh nhân xác nhận lịch đề xuất: {pending_confirm_context}
+
+Quy tắc routing:
+  - Nếu triage_complete = không/chưa, và bệnh nhân muốn đặt lịch hoặc nói ngày/giờ khám,
+    ưu tiên **consultation** (cần mô tả triệu chứng với chuyên gia trước), trừ khi đang chờ xác nhận lịch.
 
 Chỉ trả lời bằng MỘT nhãn: consultation | select_slot | confirm_appointment | general
 """
@@ -151,6 +176,14 @@ async def classify_intent_node(state: AgentState, config: RunnableConfig) -> dic
             "skip_root_respond": False,
         }
 
+    if not state.get("triage_complete"):
+        if _looks_like_booking_intent(last_human):
+            logger.info(
+                "[classify_intent] booking-like message without triage -> consultation session_id=%s",
+                state["session_id"],
+            )
+            return {"intent": "consultation", "current_agent": "root", "skip_root_respond": False}
+
     has_consultation = bool(state.get("symptoms_summary") or state.get("follow_up_count", 0) > 0)
     has_slots = bool(state.get("available_slots"))
     pending = state.get("pending_confirmation_slot")
@@ -159,8 +192,10 @@ async def classify_intent_node(state: AgentState, config: RunnableConfig) -> dic
     else:
         pending_confirm_context = "không"
 
+    triage_done = bool(state.get("triage_complete"))
     system_content = _INTENT_SYSTEM.format(
         has_consultation=has_consultation,
+        triage_complete="có" if triage_done else "chưa",
         has_slots=has_slots,
         follow_up_count=state.get("follow_up_count", 0),
         max_follow_ups=settings.MAX_FOLLOW_UP_QUESTIONS,
@@ -217,6 +252,7 @@ Thông tin phòng khám:
 Quy định bắt buộc:
   - KHÔNG đưa tư vấn y khoa, KHÔNG chẩn đoán bệnh, KHÔNG kê đơn.
   - Chỉ hỗ trợ đặt lịch, xác nhận thông tin hành chính và thu thập triệu chứng ban đầu.
+  - Hệ thống sẽ **phân loại nhu cầu khám** (để xếp thời lượng & khung giờ phù hợp) sau khi bệnh nhân mô tả triệu chứng với chuyên gia tiếp nhận.
   - Nếu người dùng hỏi về điều trị/chẩn đoán, trả lời rằng hệ thống không tư vấn y khoa
     và mời đặt lịch khám trực tiếp.
 
@@ -230,6 +266,13 @@ async def root_respond_node(state: AgentState, config: RunnableConfig) -> dict:
     callbacks = get_langfuse_callback(config)
 
     extra_context = ""
+    if state.get("dental_case_code"):
+        from app.domain.dental_cases import case_label_vi
+
+        extra_context += (
+            f"\nĐã phân loại nhu cầu khám (đặt lịch): **{case_label_vi(state['dental_case_code'])}**.\n"
+            f"Mỗi loại có **thời lượng và khung giờ trống riêng** trong hệ thống.\n"
+        )
     if state.get("available_slots"):
         slots_text = "\n".join(
             f"  • {s['display']}" for s in state["available_slots"]
@@ -287,24 +330,22 @@ async def save_intake_node(state: AgentState, config: RunnableConfig) -> dict:
         "symptoms": state.get("symptoms_summary") or "",
         "ai_diagnosis": state.get("ai_diagnosis") or "",
         "needs_visit": state.get("needs_visit", False),
+        "dental_case_code": state.get("dental_case_code"),
     })
     data = json.loads(result_json)
     intake_id = data.get("intake_id")
     logger.info(f"[save_intake] intake_id={intake_id}")
-    return {"intake_id": intake_id}
+    return {"intake_id": intake_id, "triage_complete": True}
 
 
 # ── Booking prerequisites (direct booking without prior consultation) ───────
 
 async def booking_prepare_node(state: AgentState, config: RunnableConfig) -> dict:
     """
-    confirm_booking needs intake_id + available_slots. After a 'general' reply,
-    patients often pick a time without going through dental_specialist → save_intake
-    → query_slots. Create a minimal intake and load slots (optionally scoped by
-    weekday mentioned in the last user message).
+    Sau khi triage_complete: nạp/ làm mới available_slots (ví dụ đổi ngày trong tin nhắn).
+    Không tạo intake “walk-in” mà không qua chuyên gia.
     """
-    from app.tools.intake_tools import save_consult_intake
-    from app.tools.schedule_tools import get_available_slots, infer_date_str_from_user_text
+    from app.tools.schedule_tools import get_mock_schedule, infer_date_str_from_user_text
 
     updates: dict = {}
 
@@ -314,27 +355,27 @@ async def booking_prepare_node(state: AgentState, config: RunnableConfig) -> dic
             user_text = msg.content if isinstance(msg.content, str) else ""
             break
 
-    if not state.get("intake_id"):
-        result_json = await save_consult_intake.ainvoke({
-            "patient_user_id": state["patient_user_id"],
-            "session_id": state["session_id"],
-            "symptoms": "Đặt lịch khám qua chat (chưa tư vấn triệu chứng)",
-            "ai_diagnosis": "Bệnh nhân yêu cầu đặt lịch trực tiếp.",
-            "needs_visit": True,
-        })
-        data = json.loads(result_json)
-        updates["intake_id"] = data.get("intake_id")
-        logger.info(
-            "[agent:root] booking_prepare created walk-in intake_id=%s session_id=%s",
-            updates["intake_id"],
+    if not state.get("triage_complete"):
+        logger.warning(
+            "[agent:root] booking_prepare called without triage_complete session_id=%s — no-op",
             state["session_id"],
         )
+        return updates
+
+    if not state.get("intake_id"):
+        logger.error(
+            "[agent:root] booking_prepare missing intake_id after triage session_id=%s",
+            state["session_id"],
+        )
+        return updates
 
     if not state.get("available_slots"):
         date_hint = infer_date_str_from_user_text(user_text)
-        result_json = await get_available_slots.ainvoke(
-            {} if not date_hint else {"date_str": date_hint}
-        )
+        slot_kw: dict = {"dental_case_code": state.get("dental_case_code")}
+        if date_hint:
+            slot_kw["date_str"] = date_hint
+        slot_kw["scope"] = "day"
+        result_json = await get_mock_schedule.ainvoke(slot_kw)
         data = json.loads(result_json)
         slots = data.get("slots", [])
         updates["available_slots"] = slots
@@ -357,11 +398,14 @@ async def booking_prepare_node(state: AgentState, config: RunnableConfig) -> dic
 # ── Query Available Slots ────────────────────────────────────────────────────
 
 async def query_slots_node(state: AgentState, config: RunnableConfig) -> dict:
-    """Fetch the next available appointment slots via the mock schedule service."""
-    from app.tools.schedule_tools import get_available_slots
+    """Fetch slots từ file mock JSON (get_mock_schedule, scope=day)."""
+    from app.tools.schedule_tools import get_mock_schedule
 
     logger.info("[agent:root] query_slots_node session_id=%s", state["session_id"])
-    result_json = await get_available_slots.ainvoke({})
+    result_json = await get_mock_schedule.ainvoke({
+        "scope": "day",
+        "dental_case_code": state.get("dental_case_code"),
+    })
     data = json.loads(result_json)
     slots = data.get("slots", [])
     logger.info(f"[query_slots] found {len(slots)} slots")
@@ -463,8 +507,15 @@ async def confirm_booking_node(state: AgentState, config: RunnableConfig) -> dic
     if hm is None:
         slots = state.get("available_slots") or []
         if slots:
-            date_disp = slots[0].get("display", "").split("–")[0].strip() or "ngày bạn đã chọn"
-            time_labels = [s["display"].split("–")[-1].strip() for s in slots]
+            d0 = slots[0].get("display", "")
+            date_disp = d0.split("–")[0].strip() if "–" in d0 else "ngày bạn đã chọn"
+            if not date_disp:
+                date_disp = "ngày bạn đã chọn"
+            time_labels = [
+                s.get("time_hm")
+                or s.get("display", "").split("–")[-1].split("(")[0].strip()
+                for s in slots
+            ]
             msg = (
                 f"Mình đã ghi nhận bạn muốn khám vào **{date_disp}**.\n\n"
                 f"**Chọn giờ** trong các nút bên dưới, hoặc **gõ giờ** trong ô chat "
@@ -481,6 +532,7 @@ async def confirm_booking_node(state: AgentState, config: RunnableConfig) -> dic
                         "template": "time_chips",
                         "date_label": date_disp,
                         "times": time_labels,
+                        "dental_case_code": state.get("dental_case_code"),
                     },
                 },
             }
@@ -502,7 +554,7 @@ async def confirm_booking_node(state: AgentState, config: RunnableConfig) -> dic
         }
 
     hour, minute = hm
-    res = resolve_requested_slot(date_iso, hour, minute)
+    res = resolve_requested_slot(date_iso, hour, minute, state.get("dental_case_code"))
 
     if res["kind"] == "closed":
         msg = (
@@ -535,6 +587,8 @@ async def confirm_booking_node(state: AgentState, config: RunnableConfig) -> dic
                     "template": "confirm_actions",
                     "slot_display": slot["display"],
                     "date_iso": _date_iso_from_slot_datetime(slot.get("datetime_str")),
+                    "dental_case_code": slot.get("dental_case_code")
+                    or state.get("dental_case_code"),
                 },
             },
         }
@@ -543,7 +597,11 @@ async def confirm_booking_node(state: AgentState, config: RunnableConfig) -> dic
     alts = res.get("alternatives") or []
     lbl = res.get("requested_label", f"{hour:02d}:{minute:02d}")
     if alts:
-        alt_labels = [a["display"].split("–")[-1].strip() for a in alts[:6]]
+        alt_labels = [
+            a.get("time_hm")
+            or a.get("display", "").split("–")[-1].split("(")[0].strip()
+            for a in alts[:6]
+        ]
         msg = (
             f"Khung **{lbl}** bạn chọn hiện **đã kín** hoặc không còn trong lịch trống.\n\n"
             f"**Chọn một giờ gần nhất** bên dưới hoặc gõ lại giờ trong ô chat."
@@ -559,6 +617,7 @@ async def confirm_booking_node(state: AgentState, config: RunnableConfig) -> dic
                     "template": "time_chips",
                     "date_label": f"Gợi ý (thay cho {lbl})",
                     "times": alt_labels,
+                    "dental_case_code": state.get("dental_case_code"),
                 },
             },
         }

@@ -72,11 +72,12 @@ app.add_middleware(
 )
 
 # ── Routers ───────────────────────────────────────
-from app.api.v1 import auth, chat, schedule  # noqa: E402
+from app.api.v1 import admin_lab, auth, chat, schedule  # noqa: E402
 
 app.include_router(auth.router, prefix="/api/v1/auth", tags=["Auth"])
 app.include_router(chat.router, prefix="/api/v1/chat", tags=["Chat"])
 app.include_router(schedule.router, prefix="/api/v1/schedule", tags=["Schedule"])
+app.include_router(admin_lab.router, prefix="/api/v1/admin/lab", tags=["Admin Lab"])
 
 # ── Serve uploaded images ─────────────────────────
 app.mount("/uploads", StaticFiles(directory=settings.UPLOAD_DIR), name="uploads")

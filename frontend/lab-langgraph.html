@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="vi" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sơ đồ LangGraph – SmileCare AI</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          colors: { brand: { DEFAULT: "#38bdf8", dark: "#0ea5e9" } },
+          fontFamily: { sans: ["Inter", "system-ui", "sans-serif"] },
+        },
+      },
+    };
+  </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/custom.css" />
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+  <script>
+    mermaid.initialize({
+      startOnLoad: true,
+      theme: "dark",
+      securityLevel: "loose",
+      flowchart: { useMaxWidth: true, htmlLabels: true, curve: "basis" },
+      themeVariables: {
+        darkMode: true,
+        background: "#0f172a",
+        primaryColor: "#1e293b",
+        primaryTextColor: "#f1f5f9",
+        primaryBorderColor: "#38bdf8",
+        lineColor: "#64748b",
+        secondaryColor: "#334155",
+        tertiaryColor: "#0f172a",
+        fontFamily: "Inter, system-ui, sans-serif",
+      },
+    });
+  </script>
+</head>
+<body class="bg-slate-900 text-slate-100 font-sans antialiased min-h-screen">
+  <header class="border-b border-slate-700/60 bg-slate-800/40 backdrop-blur sticky top-0 z-10">
+    <div class="max-w-5xl mx-auto px-4 sm:px-6 py-3 flex flex-wrap items-center gap-3">
+      <h1 class="text-lg font-semibold text-white">Kiến trúc LangGraph</h1>
+      <span class="text-xs text-slate-500 hidden sm:inline">Một lượt xử lý tin nhắn — đồng bộ với <code class="text-sky-400/90">graph.py</code></span>
+      <div class="ml-auto flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
+        <a href="lab-architecture.html" class="text-cyan-400 hover:text-cyan-300">Kiến trúc &amp; data flow</a>
+        <a href="admin.html" class="text-sky-400 hover:text-sky-300">Phòng lab</a>
+        <a href="index.html" class="text-slate-400 hover:text-slate-200">← Chat</a>
+      </div>
+    </div>
+  </header>
+
+  <main class="max-w-5xl mx-auto px-4 sm:px-6 py-8 space-y-10">
+    <section class="space-y-3">
+      <h2 class="text-base font-semibold text-white">Cách đọc sơ đồ</h2>
+      <p class="text-sm text-slate-400 leading-relaxed">
+        Luồng dữ liệu tổng thể (SSE, PostgreSQL, file mock) xem
+        <a href="lab-architecture.html" class="text-cyan-400 hover:underline">Kiến trúc &amp; data flow</a>.
+        Graph được biên dịch trong <span class="text-slate-300">backend/app/agents/graph.py</span>.
+        Mỗi khi người dùng gửi một tin nhắn, ứng dụng chạy graph từ nút <strong class="text-slate-200">START</strong> →
+        <strong class="text-slate-200">classify_intent</strong>, rồi đi tiếp <em>một</em> nhánh tùy <code class="text-amber-200/90">intent</code> và trạng thái
+        (<code class="text-amber-200/90">triage_complete</code>, <code class="text-amber-200/90">intake_id</code>, <code class="text-amber-200/90">available_slots</code>…).
+        Checkpointer hiện tại là <strong class="text-slate-200">MemorySaver</strong> (trong process); production có thể đổi sang Postgres/Redis.
+      </p>
+    </section>
+
+    <section class="rounded-2xl border border-slate-700/60 bg-slate-800/40 p-4 sm:p-6 overflow-x-auto">
+      <h2 class="text-base font-semibold text-white mb-4">Sơ đồ các nút và cạnh</h2>
+      <p class="text-xs text-slate-500 mb-4">Kéo ngang nếu màn hẹp. Hai mũi tên cùng đích (ví dụ vào <code class="text-sky-300">dental_specialist</code>) là hai điều kiện khác nhau.</p>
+      <div class="mermaid min-w-[320px]">
+flowchart TB
+  START([START]):::endN
+  CI["classify_intent<br/>Root LLM · phân intent"]:::core
+  DS["dental_specialist<br/>Triệu chứng · rubric · JSON intake"]:::core
+  SI["save_intake<br/>Ghi DB BookingConsultIntake"]:::core
+  QS["query_slots<br/>Tool get_mock_schedule"]:::core
+  BP["booking_prepare<br/>Bù intake + lịch khi thiếu"]:::core
+  CB["confirm_booking<br/>Khớp giờ · Reservation"]:::core
+  RR["root_respond<br/>Root LLM · tin nhắn cho BN"]:::core
+
+  START --> CI
+  CI -->|consultation| DS
+  CI -->|select_slot · chưa triage| DS
+  CI -->|general| RR
+  CI -->|confirm_appointment| CB
+  CI -->|select_slot · đủ intake + slots| CB
+  CI -->|select_slot · thiếu intake hoặc slots| BP
+
+  DS -->|needs_visit = true| SI
+  DS -->|needs_visit = false| E1([END]):::endN
+
+  SI --> QS
+  QS --> RR
+
+  BP --> CB
+  CB -->|skip_root_respond| E3([END]):::endN
+  CB -->|còn lại| RR
+  RR --> E2([END]):::endN
+
+  classDef core fill:#1e293b,stroke:#38bdf8,stroke-width:1px,color:#f1f5f9
+  classDef endN fill:#0f172a,stroke:#475569,stroke-width:1px,color:#94a3b8
+      </div>
+    </section>
+
+    <section class="rounded-2xl border border-slate-700/60 bg-slate-800/40 p-4 sm:p-6 space-y-4">
+      <h2 class="text-base font-semibold text-white">Luồng theo ý định (intent)</h2>
+      <ul class="text-sm text-slate-400 space-y-2 list-disc pl-5 leading-relaxed">
+        <li><strong class="text-slate-200">consultation</strong> — Mô tả triệu chứng / tiếp tục tư vấn → luôn vào <code class="text-sky-300">dental_specialist</code>.</li>
+        <li><strong class="text-slate-200">select_slot</strong> — Chọn giờ / đặt lịch:
+          nếu chưa <code class="text-amber-200/90">triage_complete</code> thì vẫn vào <code class="text-sky-300">dental_specialist</code>;
+          nếu đã có <code class="text-amber-200/90">intake_id</code> và <code class="text-amber-200/90">available_slots</code> → <code class="text-sky-300">confirm_booking</code>;
+          ngược lại → <code class="text-sky-300">booking_prepare</code> rồi <code class="text-sky-300">confirm_booking</code>.</li>
+        <li><strong class="text-slate-200">confirm_appointment</strong> — Đồng ý slot đang treo → <code class="text-sky-300">confirm_booking</code>.</li>
+        <li><strong class="text-slate-200">general</strong> — FAQ, chào hỏi → <code class="text-sky-300">root_respond</code>.</li>
+      </ul>
+    </section>
+
+    <section class="rounded-2xl border border-slate-700/60 bg-slate-800/40 p-4 sm:p-6 overflow-x-auto">
+      <h2 class="text-base font-semibold text-white mb-4">Góc nhìn tổng quan (từ BN đến lịch)</h2>
+      <div class="mermaid min-w-[280px]">
+flowchart LR
+  BN([Bệnh nhân]):::p
+  G([LangGraph]):::p
+  DB[(PostgreSQL)]:::p
+  MOCK{{"File JSON<br/>lịch mock"}}:::p
+
+  BN -->|HTTP chat| G
+  G -->|save_consult_intake| DB
+  G -->|đặt chỗ| DB
+  G -->|get_mock_schedule| MOCK
+
+  classDef p fill:#1e293b,stroke:#64748b,color:#e2e8f0
+      </div>
+    </section>
+
+    <section class="rounded-2xl border border-slate-700/60 bg-slate-800/40 p-4 sm:p-6">
+      <h2 class="text-base font-semibold text-white mb-4">Bảng nút (node)</h2>
+      <div class="overflow-x-auto rounded-xl border border-slate-700/50">
+        <table class="w-full text-sm text-left border-collapse min-w-[640px]">
+          <thead class="bg-slate-800/90 text-slate-400 text-xs uppercase tracking-wide">
+            <tr>
+              <th class="px-3 py-2.5 font-semibold border-b border-slate-600/80">Nút</th>
+              <th class="px-3 py-2.5 font-semibold border-b border-slate-600/80">Module</th>
+              <th class="px-3 py-2.5 font-semibold border-b border-slate-600/80">Vai trò ngắn</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-700/50 text-slate-300">
+            <tr class="hover:bg-slate-800/40">
+              <td class="px-3 py-2 font-mono text-sky-300">classify_intent</td>
+              <td class="px-3 py-2 text-slate-400">root_orchestrator.py</td>
+              <td class="px-3 py-2">Phân loại intent; shortcut khi đang chờ xác nhận lịch.</td>
+            </tr>
+            <tr class="hover:bg-slate-800/40">
+              <td class="px-3 py-2 font-mono text-sky-300">dental_specialist</td>
+              <td class="px-3 py-2 text-slate-400">dental_specialist.py</td>
+              <td class="px-3 py-2">Hỏi triệu chứng, rubric mock, chốt <code class="text-amber-200/80">dental_case_code</code> / <code class="text-amber-200/80">needs_visit</code>.</td>
+            </tr>
+            <tr class="hover:bg-slate-800/40">
+              <td class="px-3 py-2 font-mono text-sky-300">save_intake</td>
+              <td class="px-3 py-2 text-slate-400">root_orchestrator.py</td>
+              <td class="px-3 py-2">Ghi <code class="text-amber-200/80">BookingConsultIntake</code>, set <code class="text-amber-200/80">triage_complete</code>.</td>
+            </tr>
+            <tr class="hover:bg-slate-800/40">
+              <td class="px-3 py-2 font-mono text-sky-300">query_slots</td>
+              <td class="px-3 py-2 text-slate-400">root_orchestrator.py</td>
+              <td class="px-3 py-2">Gọi tool lịch mock theo mã loại khám.</td>
+            </tr>
+            <tr class="hover:bg-slate-800/40">
+              <td class="px-3 py-2 font-mono text-sky-300">booking_prepare</td>
+              <td class="px-3 py-2 text-slate-400">root_orchestrator.py</td>
+              <td class="px-3 py-2">Bù intake/slots khi BN chọn giờ nhưng thiếu điều kiện.</td>
+            </tr>
+            <tr class="hover:bg-slate-800/40">
+              <td class="px-3 py-2 font-mono text-sky-300">confirm_booking</td>
+              <td class="px-3 py-2 text-slate-400">root_orchestrator.py</td>
+              <td class="px-3 py-2">Kiểm tra slot, xác nhận với BN, ghi <code class="text-amber-200/80">Reservation</code>.</td>
+            </tr>
+            <tr class="hover:bg-slate-800/40">
+              <td class="px-3 py-2 font-mono text-sky-300">root_respond</td>
+              <td class="px-3 py-2 text-slate-400">root_orchestrator.py</td>
+              <td class="px-3 py-2">Sinh câu trả lời cuối lượt (slot chips, FAQ, v.v.).</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="rounded-2xl border border-slate-700/60 bg-slate-800/40 p-4 sm:p-6">
+      <h2 class="text-base font-semibold text-white mb-4">AgentState (trường chính)</h2>
+      <p class="text-xs text-slate-500 mb-3">Định nghĩa đầy đủ: <code class="text-sky-400/90">backend/app/agents/state.py</code></p>
+      <ul class="text-sm text-slate-400 space-y-1.5 font-mono leading-relaxed">
+        <li><span class="text-amber-200/90">messages</span> — lịch sử hội thoại (reducer add_messages)</li>
+        <li><span class="text-amber-200/90">intent</span>, <span class="text-amber-200/90">current_agent</span></li>
+        <li><span class="text-amber-200/90">symptoms_summary</span>, <span class="text-amber-200/90">dental_case_code</span>, <span class="text-amber-200/90">needs_visit</span>, <span class="text-amber-200/90">follow_up_count</span>, <span class="text-amber-200/90">triage_complete</span></li>
+        <li><span class="text-amber-200/90">intake_id</span>, <span class="text-amber-200/90">available_slots</span>, <span class="text-amber-200/90">selected_slot</span>, <span class="text-amber-200/90">pending_confirmation_slot</span></li>
+        <li><span class="text-amber-200/90">booking_confirmed</span>, <span class="text-amber-200/90">reservation_id</span>, <span class="text-amber-200/90">skip_root_respond</span>, <span class="text-amber-200/90">extra</span></li>
+      </ul>
+    </section>
+
+    <p class="text-xs text-slate-600 text-center pb-8">
+      Cập nhật sơ đồ khi sửa <code class="text-slate-500">_route_after_intent</code> / <code class="text-slate-500">_route_after_specialist</code> / <code class="text-slate-500">_route_after_confirm</code> trong graph.
+    </p>
+  </main>
+</body>
+</html>

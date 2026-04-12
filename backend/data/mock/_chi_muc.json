@@ -1,0 +1,21 @@
+{
+  "tep": [
+    {
+      "duong_dan": "phong_kham_danh_muc_va_lich_vi.json",
+      "noi_dung": "6 danh mục khám được (5 chuyên + GENERAL), 2 danh mục từ chối, dấu hiệu/từ khóa, thời lượng 15–60p, khung giờ trong ngày & lịch tuần."
+    },
+    {
+      "duong_dan": "tiep_nhan_cau_hoi_va_xep_loai_vi.json",
+      "noi_dung": "Câu hỏi chung & theo vòng, sàng lọc chuyển tuyến, bảng ánh xạ từ khóa → mã danh mục, mẫu hội thoại."
+    },
+    {
+      "duong_dan": "lich_trong_tuan_trong_vi.json",
+      "noi_dung": "Lịch trống 7 ngày theo từng loại khám; tool get_mock_schedule (scope day|week) + GET /schedule/*. Tạo lại: python scripts/generate_lich_trong_tuan_json.py"
+    },
+    {
+      "duong_dan": "triage_symptom_rubric_vi.json",
+      "noi_dung": "Rubric tiếp nhận: 5 mã CAVITY…EMERGENCY ↔ tín hiệu triệu chứng ↔ gợi ý hỏi thêm + 90 ví dụ có nhãn. Nguồn TSV: triage_examples.tsv. Tạo lại: python scripts/build_triage_symptom_rubric.py. GET /admin/lab/triage-rubric."
+    }
+  ],
+  "luu_y": "Mã CAVITY, IMPLANT, GINGIVITIS, SCALING, EMERGENCY khớp backend; GENERAL và REFERRAL_* là mở rộng dữ liệu — tích hợp code cần map thêm nếu dùng."
+}

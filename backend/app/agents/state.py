@@ -27,15 +27,15 @@ class AgentState(TypedDict):
     intent: str
     current_agent: str  # "root" | "specialist"
 
-    # ── Image (multimodal) ────────────────────────
-    image_base64: Optional[str]
-    image_mime_type: Optional[str]   # e.g. "image/jpeg"
-
     # ── Clinical assessment ───────────────────────
     symptoms_summary: Optional[str]   # accumulated by specialist
     ai_diagnosis: Optional[str]
     needs_visit: bool
     follow_up_count: int              # merging control: max 3 follow-ups
+    # CAVITY | IMPLANT | GINGIVITIS | SCALING | EMERGENCY — sau tiếp nhận / phân loại triệu chứng
+    dental_case_code: Optional[str]
+    # True sau khi đã lưu intake từ chuyên gia (đủ triệu chứng + phân loại) — mới được đặt giờ
+    triage_complete: Optional[bool]
 
     # ── Booking flow ─────────────────────────────
     intake_id: Optional[int]          # FK to booking_consult_intakes

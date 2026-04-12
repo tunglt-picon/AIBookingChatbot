@@ -12,7 +12,6 @@
 
 const State = {
   currentSessionId: null,
-  pendingImageFile: null,
   isStreaming: false,
   sessions: [],
 };
@@ -52,7 +51,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
   bindAuthForms();
   bindChatControls();
-  bindImageUpload();
 
   // Must run after DOM exists — top-level $("btn-new-session") was null at parse time.
   const newSessionBtn = $("btn-new-session");
@@ -280,9 +278,8 @@ function bindChatControls() {
       showToast("Select or create a session first.", "warning");
       return;
     }
-    await sendMessage(text, State.pendingImageFile);
+    await sendMessage(text);
     input.value = "";
-    clearImagePreview();
   });
 
   // Enter = send; Cmd+Enter (Mac) or Ctrl+Enter (Windows) = new line in textarea
@@ -296,7 +293,7 @@ function bindChatControls() {
   });
 }
 
-async function sendMessage(text, imageFile) {
+async function sendMessage(text) {
   const { ChatAPI } = window.DentalApp;
 
   State.isStreaming = true;
@@ -307,7 +304,7 @@ async function sendMessage(text, imageFile) {
   appendMessage({
     sender_type: "PATIENT_USER",
     content: text,
-    image_url: imageFile ? URL.createObjectURL(imageFile) : null,
+    image_url: null,
   });
 
   // Show typing indicator
@@ -321,7 +318,6 @@ async function sendMessage(text, imageFile) {
     await ChatAPI.sendMessage(
       State.currentSessionId,
       text,
-      imageFile,
       {
         onStatus: (msg) => {
           updateTypingLabel(typingId, msg);
@@ -370,57 +366,6 @@ async function sendMessage(text, imageFile) {
     setSendButtonDisabled(false);
     $("chat-input")?.focus();
   }
-}
-
-/* ══════════════════════════════════════════════════════════════════════════
-   IMAGE UPLOAD
-══════════════════════════════════════════════════════════════════════════ */
-
-function bindImageUpload() {
-  const uploadBtn = $("btn-upload-image");
-  const fileInput = $("file-input");
-  const dropZone = $("chat-input-area");
-  if (!uploadBtn || !fileInput || !dropZone) return;
-
-  uploadBtn.addEventListener("click", () => fileInput.click());
-  fileInput.addEventListener("change", () => {
-    const file = fileInput.files[0];
-    if (file) handleImageSelected(file);
-  });
-
-  // Drag and drop
-  dropZone.addEventListener("dragover", (e) => {
-    e.preventDefault();
-    dropZone.classList.add("drop-zone-active");
-  });
-  dropZone.addEventListener("dragleave", () =>
-    dropZone.classList.remove("drop-zone-active")
-  );
-  dropZone.addEventListener("drop", (e) => {
-    e.preventDefault();
-    dropZone.classList.remove("drop-zone-active");
-    const file = e.dataTransfer.files[0];
-    if (file && file.type.startsWith("image/")) handleImageSelected(file);
-  });
-
-  $("btn-remove-image")?.addEventListener("click", clearImagePreview);
-}
-
-function handleImageSelected(file) {
-  State.pendingImageFile = file;
-  const reader = new FileReader();
-  reader.onload = (e) => {
-    $("image-preview-thumb").src = e.target.result;
-    $("image-preview-name").textContent = file.name;
-    $("image-preview-container").classList.remove("hidden");
-  };
-  reader.readAsDataURL(file);
-}
-
-function clearImagePreview() {
-  State.pendingImageFile = null;
-  $("image-preview-container").classList.add("hidden");
-  $("file-input").value = "";
 }
 
 /* ══════════════════════════════════════════════════════════════════════════
@@ -790,7 +735,8 @@ async function beginInlineReschedule(bubbleEl, panel) {
 
   try {
     const { ScheduleAPI } = window.DentalApp;
-    const data = await ScheduleAPI.getSlots(dateIso);
+    const caseCode = (bubbleEl.dataset.confirmDentalCase || "").trim();
+    const data = await ScheduleAPI.getSlots(dateIso, caseCode || null);
     const slots = data?.slots || [];
     if (slots.length === 0) {
       showToast("Không có giờ trống cho ngày này.", "warning");
@@ -833,7 +779,10 @@ function mountInlineTimePickerPanel(panel, bubbleEl, apiResponse) {
   const row = document.createElement("div");
   row.className = "flex flex-wrap gap-2 msg-ui-chips mb-2";
   slots.forEach((slot) => {
-    const label = splitSlotDisplay(slot.display).timePart;
+    const raw = slot.time_hm || splitSlotDisplay(slot.display).timePart;
+    const label = String(raw || "")
+      .split("(")[0]
+      .trim();
     if (!label) return;
     const btn = document.createElement("button");
     btn.type = "button";
@@ -863,6 +812,9 @@ function injectAssistantMessageUi(bubbleEl, ui) {
   root.className = "msg-ui-root mt-3 pt-3 border-t border-slate-600/60";
 
   if (ui.template === "time_chips" && Array.isArray(ui.times)) {
+    if (ui.dental_case_code) {
+      bubbleEl.dataset.confirmDentalCase = String(ui.dental_case_code).trim();
+    }
     const labels = ui.times.map((t) => String(t).trim()).filter(Boolean);
     if (labels.length === 0) {
       return;
@@ -889,6 +841,9 @@ function injectAssistantMessageUi(bubbleEl, ui) {
   } else if (ui.template === "confirm_actions" && ui.slot_display) {
     bubbleEl.dataset.confirmDateIso = String(ui.date_iso || "").trim();
     bubbleEl.dataset.confirmSlotDisplay = String(ui.slot_display).trim();
+    if (ui.dental_case_code) {
+      bubbleEl.dataset.confirmDentalCase = String(ui.dental_case_code).trim();
+    }
     const panel = document.createElement("div");
     panel.className = "msg-confirm-panel";
     mountConfirmActionsPanel(panel, bubbleEl);

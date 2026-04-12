@@ -24,38 +24,40 @@
 ## 1. Architecture overview
 
 ```
-┌─────────────────────────────────────────────────────────┐
-│                      CLIENT LAYER                       │
-│              Web App (HTML / JS / Tailwind)             │
-└────────────────────────┬────────────────────────────────┘
-                         │  REST / SSE (streaming)
-┌────────────────────────▼────────────────────────────────┐
-│              API GATEWAY / BACKEND (FastAPI)             │
-│    Auth (JWT) · Rate limit · Upload · SSE streaming     │
-└────────────────────────┬────────────────────────────────┘
-                         │
-┌────────────────────────▼────────────────────────────────┐
-│              MULTI AGENT (LangGraph)                    │
-│  ┌─────────────────────┐   ┌─────────────────────────┐ │
-│  │  ROOT ORCHESTRATOR  │   │   DENTAL SPECIALIST     │ │
-│  │   (text model)      │◄──│      (VLM)             │ │
-│  │ · Intent classify   │   │ · Image + text intake   │ │
-│  │ · Slot presentation │   │ · Symptom collection    │ │
-│  │ · Booking confirm   │   │ · Structured intake     │ │
-│  └────────┬────────────┘   └─────────────────────────┘ │
-│           │  Tools                                       │
-│  ┌────────▼──────────────────────────────────────────┐  │
-│  │  TOOL LAYER: get_available_slots · book_appointment│  │
-│  │              save_consult_intake                   │  │
-│  └───────────────────────────────────────────────────┘  │
-└────────────────────────┬────────────────────────────────┘
-                         │
-┌────────────────────────▼────────────────────────────────┐
-│                    DATA LAYER                           │
-│    PostgreSQL (users, sessions, intakes, reservations)  │
-│    Redis (image cache, rate limiting, session state)    │
-└─────────────────────────────────────────────────────────┘
+┌────────────────────────────────────────────────────────────┐
+│  CLIENT — index.html (chat + SSE) · admin lab HTML pages   │
+└───────────────────────────┬────────────────────────────────┘
+                            │  REST + SSE
+┌───────────────────────────▼────────────────────────────────┐
+│  FastAPI — /auth · /chat · /schedule · /admin/lab          │
+└───────────────────────────┬────────────────────────────────┘
+                            │
+┌───────────────────────────▼────────────────────────────────┐
+│  LangGraph (MemorySaver) — classify_intent → … → END       │
+│  · Root LLM: intent, FAQ, slot wording, booking UX         │
+│  · Dental specialist LLM: text intake + triage rubric JSON │
+│  · Tools: get_mock_schedule, save_consult_intake,          │
+│           book_appointment (+ helpers in schedule_tools)   │
+└───────────────────────────┬────────────────────────────────┘
+         ┌──────────────────┴──────────────────┐
+         ▼                                      ▼
+┌─────────────────┐                 ┌─────────────────────────┐
+│  PostgreSQL     │                 │  Mock JSON (dev)        │
+│  users, sessions│                 │  lich_trong_tuan…json   │
+│  messages,      │                 │  triage_symptom_rubric… │
+│  intakes, resv  │                 │  (+ triage_examples.tsv) │
+└─────────────────┘                 └─────────────────────────┘
+
+Optional: Redis container in Docker Compose is **not used by app code** yet (reserved for future cache / rate limit).
 ```
+
+**Lab documentation (static HTML, no build):**
+
+| Page | Purpose |
+|------|---------|
+| `frontend/admin.html` | Invoke agents/tools/REST against the API |
+| `frontend/lab-architecture.html` | System layers + **data flow** (SSE, DB, mock files) |
+| `frontend/lab-langgraph.html` | LangGraph nodes, edges, `AgentState` summary |
 
 ---
 
@@ -66,10 +68,10 @@
 | **Backend** | FastAPI 0.115 + Uvicorn | Async, SSE streaming |
 | **ORM** | SQLAlchemy 2.0 (async) | asyncpg driver |
 | **Database** | PostgreSQL 16 | Docker Compose |
-| **Cache / state** | Redis 7 | Image cache, rate limit |
+| **Redis (Compose)** | Redis 7 | Optional sidecar — **not imported in Python** yet |
 | **Agents** | LangGraph 0.2 | Stateful multi-turn graph |
-| **Root agent** | Configurable (e.g. Qwen via Ollama) | Intent + booking UX |
-| **Specialist agent** | Configurable VLM (e.g. LLaVA / MedGemma) | Vision + intake |
+| **Root agent** | Configurable text LLM (Ollama / OpenAI / compatible) | Intent + booking UX |
+| **Specialist agent** | Configurable **text** LLM | Symptom intake + `dental_case_code` (rubric in `data/mock/`) |
 | **Observability** | Langfuse | Trace LLM calls |
 | **Eval (stub)** | DeepEval / Ragas | Placeholders, ready to wire |
 | **Auth** | JWT (python-jose) + bcrypt | Stateless |
@@ -101,34 +103,46 @@ AIBookingChatbot/
 │   │   ├── api/v1/              # FastAPI routers
 │   │   │   ├── auth.py          # /auth/register, /auth/login
 │   │   │   ├── chat.py          # /chat/sessions/** (SSE)
-│   │   │   └── schedule.py      # /schedule/slots, /schedule/reservations
+│   │   │   ├── schedule.py      # /schedule/slots, week mock, reservations
+│   │   │   └── admin_lab.py     # /admin/lab/** (dev agent/tool invoke)
 │   │   │
 │   │   ├── agents/              # LangGraph multi-agent system
 │   │   │   ├── state.py         # AgentState TypedDict
 │   │   │   ├── llm_factory.py   # LLM provider abstraction
 │   │   │   ├── root_orchestrator.py  # classify_intent, root_respond, booking_prepare, etc.
-│   │   │   ├── dental_specialist.py  # VLM intake node
+│   │   │   ├── dental_specialist.py  # Text intake node + rubric prompt
 │   │   │   └── graph.py         # StateGraph definition & compilation
 │   │   │
-│   │   ├── tools/               # LangChain tools (called by agents)
-│   │   │   ├── schedule_tools.py  # get_available_slots, book_appointment
+│   │   ├── domain/              # Dental case profiles (duration, windows)
+│   │   │   └── dental_cases.py
+│   │   │
+│   │   ├── tools/               # LangChain @tool (+ helpers)
+│   │   │   ├── schedule_tools.py  # get_mock_schedule, book_appointment, resolve_requested_slot, …
 │   │   │   └── intake_tools.py    # save_consult_intake
 │   │   │
 │   │   ├── services/            # Business logic
 │   │   │   ├── auth_service.py
 │   │   │   ├── chat_service.py
-│   │   │   └── redis_service.py
+│   │   │   ├── mock_week_schedule_loader.py
+│   │   │   └── triage_rubric_loader.py
 │   │   │
 │   │   └── observability/
 │   │       ├── langfuse_client.py   # Langfuse tracing wrapper
 │   │       └── eval_placeholders.py # DeepEval/Ragas stubs
 │   │
-│   ├── uploads/                 # Uploaded images (gitignored)
+│   ├── data/mock/               # lich_trong_tuan_trong_vi.json, triage_*.json/.tsv
+│   ├── uploads/                 # Static uploads dir (gitignored)
 │   ├── requirements.txt
 │   └── Dockerfile
 │
+├── scripts/                     # Repo root helpers
+│   └── build_triage_symptom_rubric.py  # rebuild triage_symptom_rubric_vi.json from TSV
+│
 ├── frontend/
 │   ├── index.html               # Single-page app (Tailwind + vanilla JS)
+│   ├── admin.html               # Admin lab (agents / tools / REST)
+│   ├── lab-architecture.html    # Architecture + data flow (Mermaid)
+│   ├── lab-langgraph.html       # LangGraph diagram
 │   ├── js/
 │   │   ├── api.js               # API client (Auth, Chat, Schedule)
 │   │   └── app.js               # UI logic, SSE handler
@@ -174,9 +188,8 @@ docker compose up postgres redis -d
 # Root orchestrator – text model (example)
 ollama pull qwen3.5:9b
 
-# Dental specialist – vision model (pick one)
-ollama pull alibayram/medgemma:4b
-# ollama pull llava-med:latest   # if available
+# Dental specialist – text model (can match root model)
+ollama pull qwen2.5:7b
 
 # Start Ollama server
 ollama serve
@@ -262,49 +275,30 @@ MAX_FOLLOW_UP_QUESTIONS=3
 
 ### Graph state (`AgentState`)
 
-```python
-class AgentState(TypedDict):
-    session_id: int
-    patient_user_id: int
-    messages: Annotated[list[AnyMessage], add_messages]  # merged by LangGraph
-    intent: str          # "consultation" | "select_slot" | "general"
-    image_base64: str    # optional dental image (multimodal)
-    symptoms_summary: str
-    ai_diagnosis: str
-    needs_visit: bool
-    follow_up_count: int  # merging control
-    intake_id: int
-    available_slots: list[dict]
-    booking_confirmed: bool
-    ...
-```
+See `backend/app/agents/state.py` for the full TypedDict. Important fields:
+
+| Field | Role |
+|-------|------|
+| `messages` | Conversation (reducer `add_messages`) |
+| `intent` | `consultation` \| `select_slot` \| `confirm_appointment` \| `general` |
+| `symptoms_summary`, `dental_case_code`, `triage_complete` | After specialist / save_intake |
+| `intake_id`, `available_slots`, `pending_confirmation_slot` | Booking handoff |
+| `booking_confirmed`, `reservation_id`, `skip_root_respond` | Confirm path |
+| `follow_up_count` | Caps specialist follow-up questions |
 
 ### Flow (each user message)
 
 ```
-START
-  │
-  ▼
-classify_intent          ← Root orchestrator
-  │
-  ├── "consultation"
-  │      ▼
-  │   dental_specialist
-  │      ├── needs_visit=False → END  (reply to user, wait next turn)
-  │      └── needs_visit=True
-  │             ▼
-  │          save_intake → query_slots → root_respond → END
-  │
-  ├── "select_slot"
-  │      ├── missing intake or slots → booking_prepare → confirm_booking
-  │      └── otherwise → confirm_booking
-  │             ▼
-  │          root_respond → END
-  │
-  └── "general"
-         ▼
-      root_respond → END
+START → classify_intent
+  ├── consultation → dental_specialist → (needs_visit?) → save_intake → query_slots → root_respond → END
+  ├── select_slot  → dental_specialist if not triage_complete
+  │                → confirm_booking if intake + slots ready
+  │                → booking_prepare → confirm_booking if prerequisites missing
+  ├── confirm_appointment → confirm_booking → root_respond or END (skip_root_respond)
+  └── general → root_respond → END
 ```
+
+Diagrams: `frontend/lab-langgraph.html` (edges) and `frontend/lab-architecture.html` (SSE + DB + mock files).
 
 ### Merging control
 
@@ -358,20 +352,31 @@ POST /api/v1/chat/sessions/{session_id}/messages
 Content-Type: multipart/form-data
   message: "I'd like to book a cleaning"
   authorization: "Bearer <token>"
-  image: <file>   (optional)
+  # Text only today — no image field on this endpoint.
 
 POST /api/v1/chat/sessions/{session_id}/close
 Authorization: Bearer <token>
 ```
 
-### Schedule and reservations
+### Schedule and reservations (mock week JSON)
 
 ```bash
-GET /api/v1/schedule/slots?date=2026-03-25
-Authorization: Bearer <token>
+# Day slots from mock file — JWT not required in dev
+GET /api/v1/schedule/slots?date=2026-03-30&case=SCALING
+
+GET /api/v1/schedule/week/slots?case=CAVITY&week_start=2026-03-30
 
 GET /api/v1/schedule/reservations
 Authorization: Bearer <token>
+```
+
+### Admin lab (dev)
+
+```bash
+POST /api/v1/admin/lab/agents/invoke
+POST /api/v1/admin/lab/tools/invoke
+GET  /api/v1/admin/lab/mock-schedule-summary
+GET  /api/v1/admin/lab/triage-rubric
 ```
 
 ### SSE event types
@@ -409,7 +414,7 @@ Single-page app under `frontend/` (no build step).
 |---------|-------------|
 | **Login / register** | JWT auth |
 | **Sessions** | New session, history |
-| **Image upload** | Drag-and-drop or file picker, preview |
+| **Lab links** | Sidebar: Admin lab, LangGraph diagram, Architecture / data flow |
 | **Streaming** | Token stream with cursor |
 | **Status text** | Node progress hints |
 | **Booking card** | Reservation id and time after confirm |
@@ -445,13 +450,13 @@ docker compose --profile langfuse up langfuse postgres
 # UI: http://localhost:3000
 ```
 
-Traces include session id (thread id), node spans, LLM calls, and tool calls (`get_available_slots`, `book_appointment`, `save_consult_intake`).
+Traces include session id (thread id), node spans, LLM calls, and tool calls such as `get_mock_schedule`, `book_appointment`, `save_consult_intake`.
 
 ---
 
 ## 10. Quality evaluation (Eval)
 
-See `backend/app/observability/eval_placeholders.py` for DeepEval/Ragas stubs.
+See `backend/app/observability/eval_placeholders.py` for DeepEval/Ragas **stubs**. They are **not** invoked from the chat pipeline until you wire them yourself.
 
 ### Example DeepEval metric
 
@@ -539,10 +544,6 @@ ollama serve
 ollama pull qwen2.5:7b
 ollama pull llava:7b
 ```
-
-### Vision not working
-
-If the model is text-only, images are ignored. Use a VLM (e.g. `llava:7b`, `gpt-4o`, or an OpenAI-compatible vision model).
 
 ### Port in use
 

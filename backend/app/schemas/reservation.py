@@ -9,10 +9,14 @@ from app.models.reservation import ReservationSource, ReservationStatus
 class AvailableSlot(BaseModel):
     datetime_str: str  # ISO format
     display: str       # human-readable label (locale-specific), e.g. "Mon, 24/03 – 14:00"
+    time_hm: Optional[str] = None
+    duration_minutes: Optional[int] = None
+    dental_case_code: Optional[str] = None
 
 
 class SlotsResponse(BaseModel):
     date: str
+    dental_case_code: Optional[str] = None
     slots: list[AvailableSlot]
 
 
@@ -33,6 +37,7 @@ class ConsultIntakeResponse(BaseModel):
     session_id: int
     symptoms: Optional[str] = None
     ai_diagnosis: Optional[str] = None
+    dental_case_code: Optional[str] = None
     needs_visit: bool
     created_at: datetime
 

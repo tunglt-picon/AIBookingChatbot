@@ -1,0 +1,1061 @@
+{
+  "meta": {
+    "tuan_bat_dau_iso": "2026-03-30",
+    "so_ngay": 7,
+    "mo_ta": "Lịch trống mock 7 ngày; slot theo từng mã loại khám (CAVITY, IMPLANT, …). Cuối tuần (Thứ 7, CN) danh sách rỗng — phòng không làm việc.",
+    "ngon_ngu": "vi-VN",
+    "nguon_sinh": "app.domain.dental_cases.slots_for_date_and_case"
+  },
+  "ngay": [
+    {
+      "date_iso": "2026-03-30",
+      "python_weekday": 0,
+      "ten_thu_vi": "Thứ 2",
+      "la_ngay_lam_viec_phong_kham": true,
+      "theo_loai_kham": {
+        "CAVITY": [],
+        "IMPLANT": [],
+        "GINGIVITIS": [
+          {
+            "datetime_str": "2026-03-30T10:00:00+00:00",
+            "display": "Thứ 2, 30/03 – 10:00 (30p · Viêm nướu / nha chu)",
+            "time_hm": "10:00",
+            "duration_minutes": 30,
+            "dental_case_code": "GINGIVITIS"
+          },
+          {
+            "datetime_str": "2026-03-30T10:15:00+00:00",
+            "display": "Thứ 2, 30/03 – 10:15 (30p · Viêm nướu / nha chu)",
+            "time_hm": "10:15",
+            "duration_minutes": 30,
+            "dental_case_code": "GINGIVITIS"
+          },
+          {
+            "datetime_str": "2026-03-30T10:30:00+00:00",
+            "display": "Thứ 2, 30/03 – 10:30 (30p · Viêm nướu / nha chu)",
+            "time_hm": "10:30",
+            "duration_minutes": 30,
+            "dental_case_code": "GINGIVITIS"
+          },
+          {
+            "datetime_str": "2026-03-30T10:45:00+00:00",
+            "display": "Thứ 2, 30/03 – 10:45 (30p · Viêm nướu / nha chu)",
+            "time_hm": "10:45",
+            "duration_minutes": 30,
+            "dental_case_code": "GINGIVITIS"
+          },
+          {
+            "datetime_str": "2026-03-30T11:00:00+00:00",
+            "display": "Thứ 2, 30/03 – 11:00 (30p · Viêm nướu / nha chu)",
+            "time_hm": "11:00",
+            "duration_minutes": 30,
+            "dental_case_code": "GINGIVITIS"
+          },
+          {
+            "datetime_str": "2026-03-30T11:15:00+00:00",
+            "display": "Thứ 2, 30/03 – 11:15 (30p · Viêm nướu / nha chu)",
+            "time_hm": "11:15",
+            "duration_minutes": 30,
+            "dental_case_code": "GINGIVITIS"
+          },
+          {
+            "datetime_str": "2026-03-30T11:30:00+00:00",
+            "display": "Thứ 2, 30/03 – 11:30 (30p · Viêm nướu / nha chu)",
+            "time_hm": "11:30",
+            "duration_minutes": 30,
+            "dental_case_code": "GINGIVITIS"
+          }
+        ],
+        "SCALING": [
+          {
+            "datetime_str": "2026-03-30T13:30:00+00:00",
+            "display": "Thứ 2, 30/03 – 13:30 (15p · Cạo vôi / vệ sinh răng miệng)",
+            "time_hm": "13:30",
+            "duration_minutes": 15,
+            "dental_case_code": "SCALING"
+          },
+          {
+            "datetime_str": "2026-03-30T13:45:00+00:00",
+            "display": "Thứ 2, 30/03 – 13:45 (15p · Cạo vôi / vệ sinh răng miệng)",
+            "time_hm": "13:45",
+            "duration_minutes": 15,
+            "dental_case_code": "SCALING"
+          },
+          {
+            "datetime_str": "2026-03-30T14:00:00+00:00",
+            "display": "Thứ 2, 30/03 – 14:00 (15p · Cạo vôi / vệ sinh răng miệng)",
+            "time_hm": "14:00",
+            "duration_minutes": 15,
+            "dental_case_code": "SCALING"
+          },
+          {
+            "datetime_str": "2026-03-30T14:15:00+00:00",
+            "display": "Thứ 2, 30/03 – 14:15 (15p · Cạo vôi / vệ sinh răng miệng)",
+            "time_hm": "14:15",
+            "duration_minutes": 15,
+            "dental_case_code": "SCALING"
+          },
+          {
+            "datetime_str": "2026-03-30T14:30:00+00:00",
+            "display": "Thứ 2, 30/03 – 14:30 (15p · Cạo vôi / vệ sinh răng miệng)",
+            "time_hm": "14:30",
+            "duration_minutes": 15,
+            "dental_case_code": "SCALING"
+          },
+          {
+            "datetime_str": "2026-03-30T14:45:00+00:00",
+            "display": "Thứ 2, 30/03 – 14:45 (15p · Cạo vôi / vệ sinh răng miệng)",
+            "time_hm": "14:45",
+            "duration_minutes": 15,
+            "dental_case_code": "SCALING"
+          },
+          {
+            "datetime_str": "2026-03-30T15:00:00+00:00",
+            "display": "Thứ 2, 30/03 – 15:00 (15p · Cạo vôi / vệ sinh răng miệng)",
+            "time_hm": "15:00",
+            "duration_minutes": 15,
+            "dental_case_code": "SCALING"
+          },
+          {
+            "datetime_str": "2026-03-30T15:15:00+00:00",
+            "display": "Thứ 2, 30/03 – 15:15 (15p · Cạo vôi / vệ sinh răng miệng)",
+            "time_hm": "15:15",
+            "duration_minutes": 15,
+            "dental_case_code": "SCALING"
+          },
+          {
+            "datetime_str": "2026-03-30T15:30:00+00:00",
+            "display": "Thứ 2, 30/03 – 15:30 (15p · Cạo vôi / vệ sinh răng miệng)",
+            "time_hm": "15:30",
+            "duration_minutes": 15,
+            "dental_case_code": "SCALING"
+          },
+          {
+            "datetime_str": "2026-03-30T15:45:00+00:00",
+            "display": "Thứ 2, 30/03 – 15:45 (15p · Cạo vôi / vệ sinh răng miệng)",
+            "time_hm": "15:45",
+            "duration_minutes": 15,
+            "dental_case_code": "SCALING"
+          },
+          {
+            "datetime_str": "2026-03-30T16:00:00+00:00",
+            "display": "Thứ 2, 30/03 – 16:00 (15p · Cạo vôi / vệ sinh răng miệng)",
+            "time_hm": "16:00",
+            "duration_minutes": 15,
+            "dental_case_code": "SCALING"
+          },
+          {
+            "datetime_str": "2026-03-30T16:15:00+00:00",
+            "display": "Thứ 2, 30/03 – 16:15 (15p · Cạo vôi / vệ sinh răng miệng)",
+            "time_hm": "16:15",
+            "duration_minutes": 15,
+            "dental_case_code": "SCALING"
+          }
+        ],
+        "EMERGENCY": [
+          {
+            "datetime_str": "2026-03-30T10:00:00+00:00",
+            "display": "Thứ 2, 30/03 – 10:00 (30p · Đau cấp / sưng nướu / cần xử lý nhanh)",
+            "time_hm": "10:00",
+            "duration_minutes": 30,
+            "dental_case_code": "EMERGENCY"
+          },
+          {
+            "datetime_str": "2026-03-30T10:15:00+00:00",
+            "display": "Thứ 2, 30/03 – 10:15 (30p · Đau cấp / sưng nướu / cần xử lý nhanh)",
+            "time_hm": "10:15",
+            "duration_minutes": 30,
+            "dental_case_code": "EMERGENCY"
+          },
+          {
+            "datetime_str": "2026-03-30T10:30:00+00:00",
+            "display": "Thứ 2, 30/03 – 10:30 (30p · Đau cấp / sưng nướu / cần xử lý nhanh)",
+            "time_hm": "10:30",
+            "duration_minutes": 30,
+            "dental_case_code": "EMERGENCY"
+          },
+          {
+            "datetime_str": "2026-03-30T10:45:00+00:00",
+            "display": "Thứ 2, 30/03 – 10:45 (30p · Đau cấp / sưng nướu / cần xử lý nhanh)",
+            "time_hm": "10:45",
+            "duration_minutes": 30,
+            "dental_case_code": "EMERGENCY"
+          },
+          {
+            "datetime_str": "2026-03-30T11:00:00+00:00",
+            "display": "Thứ 2, 30/03 – 11:00 (30p · Đau cấp / sưng nướu / cần xử lý nhanh)",
+            "time_hm": "11:00",
+            "duration_minutes": 30,
+            "dental_case_code": "EMERGENCY"
+          },
+          {
+            "datetime_str": "2026-03-30T11:15:00+00:00",
+            "display": "Thứ 2, 30/03 – 11:15 (30p · Đau cấp / sưng nướu / cần xử lý nhanh)",
+            "time_hm": "11:15",
+            "duration_minutes": 30,
+            "dental_case_code": "EMERGENCY"
+          },
+          {
+            "datetime_str": "2026-03-30T11:30:00+00:00",
+            "display": "Thứ 2, 30/03 – 11:30 (30p · Đau cấp / sưng nướu / cần xử lý nhanh)",
+            "time_hm": "11:30",
+            "duration_minutes": 30,
+            "dental_case_code": "EMERGENCY"
+          },
+          {
+            "datetime_str": "2026-03-30T11:45:00+00:00",
+            "display": "Thứ 2, 30/03 – 11:45 (30p · Đau cấp / sưng nướu / cần xử lý nhanh)",
+            "time_hm": "11:45",
+            "duration_minutes": 30,
+            "dental_case_code": "EMERGENCY"
+          },
+          {
+            "datetime_str": "2026-03-30T12:00:00+00:00",
+            "display": "Thứ 2, 30/03 – 12:00 (30p · Đau cấp / sưng nướu / cần xử lý nhanh)",
+            "time_hm": "12:00",
+            "duration_minutes": 30,
+            "dental_case_code": "EMERGENCY"
+          }
+        ]
+      }
+    },
+    {
+      "date_iso": "2026-03-31",
+      "python_weekday": 1,
+      "ten_thu_vi": "Thứ 3",
+      "la_ngay_lam_viec_phong_kham": true,
+      "theo_loai_kham": {
+        "CAVITY": [
+          {
+            "datetime_str": "2026-03-31T08:00:00+00:00",
+            "display": "Thứ 3, 31/03 – 08:00 (15p · Sâu răng / khắc phục sâu răng)",
+            "time_hm": "08:00",
+            "duration_minutes": 15,
+            "dental_case_code": "CAVITY"
+          },
+          {
+            "datetime_str": "2026-03-31T08:15:00+00:00",
+            "display": "Thứ 3, 31/03 – 08:15 (15p · Sâu răng / khắc phục sâu răng)",
+            "time_hm": "08:15",
+            "duration_minutes": 15,
+            "dental_case_code": "CAVITY"
+          }
+        ],
+        "IMPLANT": [],
+        "GINGIVITIS": [
+          {
+            "datetime_str": "2026-03-31T09:30:00+00:00",
+            "display": "Thứ 3, 31/03 – 09:30 (30p · Viêm nướu / nha chu)",
+            "time_hm": "09:30",
+            "duration_minutes": 30,
+            "dental_case_code": "GINGIVITIS"
+          },
+          {
+            "datetime_str": "2026-03-31T10:30:00+00:00",
+            "display": "Thứ 3, 31/03 – 10:30 (30p · Viêm nướu / nha chu)",
+            "time_hm": "10:30",
+            "duration_minutes": 30,
+            "dental_case_code": "GINGIVITIS"
+          },
+          {
+            "datetime_str": "2026-03-31T10:45:00+00:00",
+            "display": "Thứ 3, 31/03 – 10:45 (30p · Viêm nướu / nha chu)",
+            "time_hm": "10:45",
+            "duration_minutes": 30,
+            "dental_case_code": "GINGIVITIS"
+          },
+          {
+            "datetime_str": "2026-03-31T11:00:00+00:00",
+            "display": "Thứ 3, 31/03 – 11:00 (30p · Viêm nướu / nha chu)",
+            "time_hm": "11:00",
+            "duration_minutes": 30,
+            "dental_case_code": "GINGIVITIS"
+          },
+          {
+            "datetime_str": "2026-03-31T11:15:00+00:00",
+            "display": "Thứ 3, 31/03 – 11:15 (30p · Viêm nướu / nha chu)",
+            "time_hm": "11:15",
+            "duration_minutes": 30,
+            "dental_case_code": "GINGIVITIS"
+          },
+          {
+            "datetime_str": "2026-03-31T11:30:00+00:00",
+            "display": "Thứ 3, 31/03 – 11:30 (30p · Viêm nướu / nha chu)",
+            "time_hm": "11:30",
+            "duration_minutes": 30,
+            "dental_case_code": "GINGIVITIS"
+          }
+        ],
+        "SCALING": [
+          {
+            "datetime_str": "2026-03-31T13:30:00+00:00",
+            "display": "Thứ 3, 31/03 – 13:30 (15p · Cạo vôi / vệ sinh răng miệng)",
+            "time_hm": "13:30",
+            "duration_minutes": 15,
+            "dental_case_code": "SCALING"
+          },
+          {
+            "datetime_str": "2026-03-31T13:45:00+00:00",
+            "display": "Thứ 3, 31/03 – 13:45 (15p · Cạo vôi / vệ sinh răng miệng)",
+            "time_hm": "13:45",
+            "duration_minutes": 15,
+            "dental_case_code": "SCALING"
+          },
+          {
+            "datetime_str": "2026-03-31T14:00:00+00:00",
+            "display": "Thứ 3, 31/03 – 14:00 (15p · Cạo vôi / vệ sinh răng miệng)",
+            "time_hm": "14:00",
+            "duration_minutes": 15,
+            "dental_case_code": "SCALING"
+          },
+          {
+            "datetime_str": "2026-03-31T14:15:00+00:00",
+            "display": "Thứ 3, 31/03 – 14:15 (15p · Cạo vôi / vệ sinh răng miệng)",
+            "time_hm": "14:15",
+            "duration_minutes": 15,
+            "dental_case_code": "SCALING"
+          },
+          {
+            "datetime_str": "2026-03-31T14:30:00+00:00",
+            "display": "Thứ 3, 31/03 – 14:30 (15p · Cạo vôi / vệ sinh răng miệng)",
+            "time_hm": "14:30",
+            "duration_minutes": 15,
+            "dental_case_code": "SCALING"
+          },
+          {
+            "datetime_str": "2026-03-31T14:45:00+00:00",
+            "display": "Thứ 3, 31/03 – 14:45 (15p · Cạo vôi / vệ sinh răng miệng)",
+            "time_hm": "14:45",
+            "duration_minutes": 15,
+            "dental_case_code": "SCALING"
+          },
+          {
+            "datetime_str": "2026-03-31T15:00:00+00:00",
+            "display": "Thứ 3, 31/03 – 15:00 (15p · Cạo vôi / vệ sinh răng miệng)",
+            "time_hm": "15:00",
+            "duration_minutes": 15,
+            "dental_case_code": "SCALING"
+          },
+          {
+            "datetime_str": "2026-03-31T15:15:00+00:00",
+            "display": "Thứ 3, 31/03 – 15:15 (15p · Cạo vôi / vệ sinh răng miệng)",
+            "time_hm": "15:15",
+            "duration_minutes": 15,
+            "dental_case_code": "SCALING"
+          },
+          {
+            "datetime_str": "2026-03-31T15:30:00+00:00",
+            "display": "Thứ 3, 31/03 – 15:30 (15p · Cạo vôi / vệ sinh răng miệng)",
+            "time_hm": "15:30",
+            "duration_minutes": 15,
+            "dental_case_code": "SCALING"
+          },
+          {
+            "datetime_str": "2026-03-31T15:45:00+00:00",
+            "display": "Thứ 3, 31/03 – 15:45 (15p · Cạo vôi / vệ sinh răng miệng)",
+            "time_hm": "15:45",
+            "duration_minutes": 15,
+            "dental_case_code": "SCALING"
+          },
+          {
+            "datetime_str": "2026-03-31T16:00:00+00:00",
+            "display": "Thứ 3, 31/03 – 16:00 (15p · Cạo vôi / vệ sinh răng miệng)",
+            "time_hm": "16:00",
+            "duration_minutes": 15,
+            "dental_case_code": "SCALING"
+          },
+          {
+            "datetime_str": "2026-03-31T16:15:00+00:00",
+            "display": "Thứ 3, 31/03 – 16:15 (15p · Cạo vôi / vệ sinh răng miệng)",
+            "time_hm": "16:15",
+            "duration_minutes": 15,
+            "dental_case_code": "SCALING"
+          }
+        ],
+        "EMERGENCY": [
+          {
+            "datetime_str": "2026-03-31T10:30:00+00:00",
+            "display": "Thứ 3, 31/03 – 10:30 (30p · Đau cấp / sưng nướu / cần xử lý nhanh)",
+            "time_hm": "10:30",
+            "duration_minutes": 30,
+            "dental_case_code": "EMERGENCY"
+          },
+          {
+            "datetime_str": "2026-03-31T10:45:00+00:00",
+            "display": "Thứ 3, 31/03 – 10:45 (30p · Đau cấp / sưng nướu / cần xử lý nhanh)",
+            "time_hm": "10:45",
+            "duration_minutes": 30,
+            "dental_case_code": "EMERGENCY"
+          },
+          {
+            "datetime_str": "2026-03-31T11:00:00+00:00",
+            "display": "Thứ 3, 31/03 – 11:00 (30p · Đau cấp / sưng nướu / cần xử lý nhanh)",
+            "time_hm": "11:00",
+            "duration_minutes": 30,
+            "dental_case_code": "EMERGENCY"
+          },
+          {
+            "datetime_str": "2026-03-31T11:15:00+00:00",
+            "display": "Thứ 3, 31/03 – 11:15 (30p · Đau cấp / sưng nướu / cần xử lý nhanh)",
+            "time_hm": "11:15",
+            "duration_minutes": 30,
+            "dental_case_code": "EMERGENCY"
+          },
+          {
+            "datetime_str": "2026-03-31T11:30:00+00:00",
+            "display": "Thứ 3, 31/03 – 11:30 (30p · Đau cấp / sưng nướu / cần xử lý nhanh)",
+            "time_hm": "11:30",
+            "duration_minutes": 30,
+            "dental_case_code": "EMERGENCY"
+          },
+          {
+            "datetime_str": "2026-03-31T11:45:00+00:00",
+            "display": "Thứ 3, 31/03 – 11:45 (30p · Đau cấp / sưng nướu / cần xử lý nhanh)",
+            "time_hm": "11:45",
+            "duration_minutes": 30,
+            "dental_case_code": "EMERGENCY"
+          },
+          {
+            "datetime_str": "2026-03-31T12:00:00+00:00",
+            "display": "Thứ 3, 31/03 – 12:00 (30p · Đau cấp / sưng nướu / cần xử lý nhanh)",
+            "time_hm": "12:00",
+            "duration_minutes": 30,
+            "dental_case_code": "EMERGENCY"
+          }
+        ]
+      }
+    },
+    {
+      "date_iso": "2026-04-01",
+      "python_weekday": 2,
+      "ten_thu_vi": "Thứ 4",
+      "la_ngay_lam_viec_phong_kham": true,
+      "theo_loai_kham": {
+        "CAVITY": [
+          {
+            "datetime_str": "2026-04-01T08:00:00+00:00",
+            "display": "Thứ 4, 01/04 – 08:00 (15p · Sâu răng / khắc phục sâu răng)",
+            "time_hm": "08:00",
+            "duration_minutes": 15,
+            "dental_case_code": "CAVITY"
+          },
+          {
+            "datetime_str": "2026-04-01T08:15:00+00:00",
+            "display": "Thứ 4, 01/04 – 08:15 (15p · Sâu răng / khắc phục sâu răng)",
+            "time_hm": "08:15",
+            "duration_minutes": 15,
+            "dental_case_code": "CAVITY"
+          }
+        ],
+        "IMPLANT": [],
+        "GINGIVITIS": [
+          {
+            "datetime_str": "2026-04-01T09:30:00+00:00",
+            "display": "Thứ 4, 01/04 – 09:30 (30p · Viêm nướu / nha chu)",
+            "time_hm": "09:30",
+            "duration_minutes": 30,
+            "dental_case_code": "GINGIVITIS"
+          },
+          {
+            "datetime_str": "2026-04-01T10:30:00+00:00",
+            "display": "Thứ 4, 01/04 – 10:30 (30p · Viêm nướu / nha chu)",
+            "time_hm": "10:30",
+            "duration_minutes": 30,
+            "dental_case_code": "GINGIVITIS"
+          },
+          {
+            "datetime_str": "2026-04-01T10:45:00+00:00",
+            "display": "Thứ 4, 01/04 – 10:45 (30p · Viêm nướu / nha chu)",
+            "time_hm": "10:45",
+            "duration_minutes": 30,
+            "dental_case_code": "GINGIVITIS"
+          },
+          {
+            "datetime_str": "2026-04-01T11:00:00+00:00",
+            "display": "Thứ 4, 01/04 – 11:00 (30p · Viêm nướu / nha chu)",
+            "time_hm": "11:00",
+            "duration_minutes": 30,
+            "dental_case_code": "GINGIVITIS"
+          },
+          {
+            "datetime_str": "2026-04-01T11:15:00+00:00",
+            "display": "Thứ 4, 01/04 – 11:15 (30p · Viêm nướu / nha chu)",
+            "time_hm": "11:15",
+            "duration_minutes": 30,
+            "dental_case_code": "GINGIVITIS"
+          },
+          {
+            "datetime_str": "2026-04-01T11:30:00+00:00",
+            "display": "Thứ 4, 01/04 – 11:30 (30p · Viêm nướu / nha chu)",
+            "time_hm": "11:30",
+            "duration_minutes": 30,
+            "dental_case_code": "GINGIVITIS"
+          }
+        ],
+        "SCALING": [
+          {
+            "datetime_str": "2026-04-01T13:30:00+00:00",
+            "display": "Thứ 4, 01/04 – 13:30 (15p · Cạo vôi / vệ sinh răng miệng)",
+            "time_hm": "13:30",
+            "duration_minutes": 15,
+            "dental_case_code": "SCALING"
+          },
+          {
+            "datetime_str": "2026-04-01T13:45:00+00:00",
+            "display": "Thứ 4, 01/04 – 13:45 (15p · Cạo vôi / vệ sinh răng miệng)",
+            "time_hm": "13:45",
+            "duration_minutes": 15,
+            "dental_case_code": "SCALING"
+          },
+          {
+            "datetime_str": "2026-04-01T14:00:00+00:00",
+            "display": "Thứ 4, 01/04 – 14:00 (15p · Cạo vôi / vệ sinh răng miệng)",
+            "time_hm": "14:00",
+            "duration_minutes": 15,
+            "dental_case_code": "SCALING"
+          },
+          {
+            "datetime_str": "2026-04-01T14:15:00+00:00",
+            "display": "Thứ 4, 01/04 – 14:15 (15p · Cạo vôi / vệ sinh răng miệng)",
+            "time_hm": "14:15",
+            "duration_minutes": 15,
+            "dental_case_code": "SCALING"
+          },
+          {
+            "datetime_str": "2026-04-01T14:30:00+00:00",
+            "display": "Thứ 4, 01/04 – 14:30 (15p · Cạo vôi / vệ sinh răng miệng)",
+            "time_hm": "14:30",
+            "duration_minutes": 15,
+            "dental_case_code": "SCALING"
+          },
+          {
+            "datetime_str": "2026-04-01T14:45:00+00:00",
+            "display": "Thứ 4, 01/04 – 14:45 (15p · Cạo vôi / vệ sinh răng miệng)",
+            "time_hm": "14:45",
+            "duration_minutes": 15,
+            "dental_case_code": "SCALING"
+          },
+          {
+            "datetime_str": "2026-04-01T15:00:00+00:00",
+            "display": "Thứ 4, 01/04 – 15:00 (15p · Cạo vôi / vệ sinh răng miệng)",
+            "time_hm": "15:00",
+            "duration_minutes": 15,
+            "dental_case_code": "SCALING"
+          },
+          {
+            "datetime_str": "2026-04-01T15:15:00+00:00",
+            "display": "Thứ 4, 01/04 – 15:15 (15p · Cạo vôi / vệ sinh răng miệng)",
+            "time_hm": "15:15",
+            "duration_minutes": 15,
+            "dental_case_code": "SCALING"
+          },
+          {
+            "datetime_str": "2026-04-01T15:30:00+00:00",
+            "display": "Thứ 4, 01/04 – 15:30 (15p · Cạo vôi / vệ sinh răng miệng)",
+            "time_hm": "15:30",
+            "duration_minutes": 15,
+            "dental_case_code": "SCALING"
+          },
+          {
+            "datetime_str": "2026-04-01T15:45:00+00:00",
+            "display": "Thứ 4, 01/04 – 15:45 (15p · Cạo vôi / vệ sinh răng miệng)",
+            "time_hm": "15:45",
+            "duration_minutes": 15,
+            "dental_case_code": "SCALING"
+          },
+          {
+            "datetime_str": "2026-04-01T16:00:00+00:00",
+            "display": "Thứ 4, 01/04 – 16:00 (15p · Cạo vôi / vệ sinh răng miệng)",
+            "time_hm": "16:00",
+            "duration_minutes": 15,
+            "dental_case_code": "SCALING"
+          },
+          {
+            "datetime_str": "2026-04-01T16:15:00+00:00",
+            "display": "Thứ 4, 01/04 – 16:15 (15p · Cạo vôi / vệ sinh răng miệng)",
+            "time_hm": "16:15",
+            "duration_minutes": 15,
+            "dental_case_code": "SCALING"
+          }
+        ],
+        "EMERGENCY": [
+          {
+            "datetime_str": "2026-04-01T10:30:00+00:00",
+            "display": "Thứ 4, 01/04 – 10:30 (30p · Đau cấp / sưng nướu / cần xử lý nhanh)",
+            "time_hm": "10:30",
+            "duration_minutes": 30,
+            "dental_case_code": "EMERGENCY"
+          },
+          {
+            "datetime_str": "2026-04-01T10:45:00+00:00",
+            "display": "Thứ 4, 01/04 – 10:45 (30p · Đau cấp / sưng nướu / cần xử lý nhanh)",
+            "time_hm": "10:45",
+            "duration_minutes": 30,
+            "dental_case_code": "EMERGENCY"
+          },
+          {
+            "datetime_str": "2026-04-01T11:00:00+00:00",
+            "display": "Thứ 4, 01/04 – 11:00 (30p · Đau cấp / sưng nướu / cần xử lý nhanh)",
+            "time_hm": "11:00",
+            "duration_minutes": 30,
+            "dental_case_code": "EMERGENCY"
+          },
+          {
+            "datetime_str": "2026-04-01T11:15:00+00:00",
+            "display": "Thứ 4, 01/04 – 11:15 (30p · Đau cấp / sưng nướu / cần xử lý nhanh)",
+            "time_hm": "11:15",
+            "duration_minutes": 30,
+            "dental_case_code": "EMERGENCY"
+          },
+          {
+            "datetime_str": "2026-04-01T11:30:00+00:00",
+            "display": "Thứ 4, 01/04 – 11:30 (30p · Đau cấp / sưng nướu / cần xử lý nhanh)",
+            "time_hm": "11:30",
+            "duration_minutes": 30,
+            "dental_case_code": "EMERGENCY"
+          },
+          {
+            "datetime_str": "2026-04-01T11:45:00+00:00",
+            "display": "Thứ 4, 01/04 – 11:45 (30p · Đau cấp / sưng nướu / cần xử lý nhanh)",
+            "time_hm": "11:45",
+            "duration_minutes": 30,
+            "dental_case_code": "EMERGENCY"
+          },
+          {
+            "datetime_str": "2026-04-01T12:00:00+00:00",
+            "display": "Thứ 4, 01/04 – 12:00 (30p · Đau cấp / sưng nướu / cần xử lý nhanh)",
+            "time_hm": "12:00",
+            "duration_minutes": 30,
+            "dental_case_code": "EMERGENCY"
+          }
+        ]
+      }
+    },
+    {
+      "date_iso": "2026-04-02",
+      "python_weekday": 3,
+      "ten_thu_vi": "Thứ 5",
+      "la_ngay_lam_viec_phong_kham": true,
+      "theo_loai_kham": {
+        "CAVITY": [
+          {
+            "datetime_str": "2026-04-02T08:00:00+00:00",
+            "display": "Thứ 5, 02/04 – 08:00 (15p · Sâu răng / khắc phục sâu răng)",
+            "time_hm": "08:00",
+            "duration_minutes": 15,
+            "dental_case_code": "CAVITY"
+          },
+          {
+            "datetime_str": "2026-04-02T08:15:00+00:00",
+            "display": "Thứ 5, 02/04 – 08:15 (15p · Sâu răng / khắc phục sâu răng)",
+            "time_hm": "08:15",
+            "duration_minutes": 15,
+            "dental_case_code": "CAVITY"
+          }
+        ],
+        "IMPLANT": [
+          {
+            "datetime_str": "2026-04-02T08:00:00+00:00",
+            "display": "Thứ 5, 02/04 – 08:00 (60p · Trồng răng / implant)",
+            "time_hm": "08:00",
+            "duration_minutes": 60,
+            "dental_case_code": "IMPLANT"
+          }
+        ],
+        "GINGIVITIS": [
+          {
+            "datetime_str": "2026-04-02T09:30:00+00:00",
+            "display": "Thứ 5, 02/04 – 09:30 (30p · Viêm nướu / nha chu)",
+            "time_hm": "09:30",
+            "duration_minutes": 30,
+            "dental_case_code": "GINGIVITIS"
+          },
+          {
+            "datetime_str": "2026-04-02T09:45:00+00:00",
+            "display": "Thứ 5, 02/04 – 09:45 (30p · Viêm nướu / nha chu)",
+            "time_hm": "09:45",
+            "duration_minutes": 30,
+            "dental_case_code": "GINGIVITIS"
+          },
+          {
+            "datetime_str": "2026-04-02T10:00:00+00:00",
+            "display": "Thứ 5, 02/04 – 10:00 (30p · Viêm nướu / nha chu)",
+            "time_hm": "10:00",
+            "duration_minutes": 30,
+            "dental_case_code": "GINGIVITIS"
+          },
+          {
+            "datetime_str": "2026-04-02T11:00:00+00:00",
+            "display": "Thứ 5, 02/04 – 11:00 (30p · Viêm nướu / nha chu)",
+            "time_hm": "11:00",
+            "duration_minutes": 30,
+            "dental_case_code": "GINGIVITIS"
+          },
+          {
+            "datetime_str": "2026-04-02T11:15:00+00:00",
+            "display": "Thứ 5, 02/04 – 11:15 (30p · Viêm nướu / nha chu)",
+            "time_hm": "11:15",
+            "duration_minutes": 30,
+            "dental_case_code": "GINGIVITIS"
+          },
+          {
+            "datetime_str": "2026-04-02T11:30:00+00:00",
+            "display": "Thứ 5, 02/04 – 11:30 (30p · Viêm nướu / nha chu)",
+            "time_hm": "11:30",
+            "duration_minutes": 30,
+            "dental_case_code": "GINGIVITIS"
+          }
+        ],
+        "SCALING": [
+          {
+            "datetime_str": "2026-04-02T13:30:00+00:00",
+            "display": "Thứ 5, 02/04 – 13:30 (15p · Cạo vôi / vệ sinh răng miệng)",
+            "time_hm": "13:30",
+            "duration_minutes": 15,
+            "dental_case_code": "SCALING"
+          },
+          {
+            "datetime_str": "2026-04-02T13:45:00+00:00",
+            "display": "Thứ 5, 02/04 – 13:45 (15p · Cạo vôi / vệ sinh răng miệng)",
+            "time_hm": "13:45",
+            "duration_minutes": 15,
+            "dental_case_code": "SCALING"
+          },
+          {
+            "datetime_str": "2026-04-02T14:00:00+00:00",
+            "display": "Thứ 5, 02/04 – 14:00 (15p · Cạo vôi / vệ sinh răng miệng)",
+            "time_hm": "14:00",
+            "duration_minutes": 15,
+            "dental_case_code": "SCALING"
+          },
+          {
+            "datetime_str": "2026-04-02T14:15:00+00:00",
+            "display": "Thứ 5, 02/04 – 14:15 (15p · Cạo vôi / vệ sinh răng miệng)",
+            "time_hm": "14:15",
+            "duration_minutes": 15,
+            "dental_case_code": "SCALING"
+          },
+          {
+            "datetime_str": "2026-04-02T14:30:00+00:00",
+            "display": "Thứ 5, 02/04 – 14:30 (15p · Cạo vôi / vệ sinh răng miệng)",
+            "time_hm": "14:30",
+            "duration_minutes": 15,
+            "dental_case_code": "SCALING"
+          },
+          {
+            "datetime_str": "2026-04-02T14:45:00+00:00",
+            "display": "Thứ 5, 02/04 – 14:45 (15p · Cạo vôi / vệ sinh răng miệng)",
+            "time_hm": "14:45",
+            "duration_minutes": 15,
+            "dental_case_code": "SCALING"
+          },
+          {
+            "datetime_str": "2026-04-02T15:00:00+00:00",
+            "display": "Thứ 5, 02/04 – 15:00 (15p · Cạo vôi / vệ sinh răng miệng)",
+            "time_hm": "15:00",
+            "duration_minutes": 15,
+            "dental_case_code": "SCALING"
+          },
+          {
+            "datetime_str": "2026-04-02T15:15:00+00:00",
+            "display": "Thứ 5, 02/04 – 15:15 (15p · Cạo vôi / vệ sinh răng miệng)",
+            "time_hm": "15:15",
+            "duration_minutes": 15,
+            "dental_case_code": "SCALING"
+          },
+          {
+            "datetime_str": "2026-04-02T15:30:00+00:00",
+            "display": "Thứ 5, 02/04 – 15:30 (15p · Cạo vôi / vệ sinh răng miệng)",
+            "time_hm": "15:30",
+            "duration_minutes": 15,
+            "dental_case_code": "SCALING"
+          },
+          {
+            "datetime_str": "2026-04-02T15:45:00+00:00",
+            "display": "Thứ 5, 02/04 – 15:45 (15p · Cạo vôi / vệ sinh răng miệng)",
+            "time_hm": "15:45",
+            "duration_minutes": 15,
+            "dental_case_code": "SCALING"
+          },
+          {
+            "datetime_str": "2026-04-02T16:00:00+00:00",
+            "display": "Thứ 5, 02/04 – 16:00 (15p · Cạo vôi / vệ sinh răng miệng)",
+            "time_hm": "16:00",
+            "duration_minutes": 15,
+            "dental_case_code": "SCALING"
+          },
+          {
+            "datetime_str": "2026-04-02T16:15:00+00:00",
+            "display": "Thứ 5, 02/04 – 16:15 (15p · Cạo vôi / vệ sinh răng miệng)",
+            "time_hm": "16:15",
+            "duration_minutes": 15,
+            "dental_case_code": "SCALING"
+          }
+        ],
+        "EMERGENCY": [
+          {
+            "datetime_str": "2026-04-02T10:00:00+00:00",
+            "display": "Thứ 5, 02/04 – 10:00 (30p · Đau cấp / sưng nướu / cần xử lý nhanh)",
+            "time_hm": "10:00",
+            "duration_minutes": 30,
+            "dental_case_code": "EMERGENCY"
+          },
+          {
+            "datetime_str": "2026-04-02T11:00:00+00:00",
+            "display": "Thứ 5, 02/04 – 11:00 (30p · Đau cấp / sưng nướu / cần xử lý nhanh)",
+            "time_hm": "11:00",
+            "duration_minutes": 30,
+            "dental_case_code": "EMERGENCY"
+          },
+          {
+            "datetime_str": "2026-04-02T11:15:00+00:00",
+            "display": "Thứ 5, 02/04 – 11:15 (30p · Đau cấp / sưng nướu / cần xử lý nhanh)",
+            "time_hm": "11:15",
+            "duration_minutes": 30,
+            "dental_case_code": "EMERGENCY"
+          },
+          {
+            "datetime_str": "2026-04-02T11:30:00+00:00",
+            "display": "Thứ 5, 02/04 – 11:30 (30p · Đau cấp / sưng nướu / cần xử lý nhanh)",
+            "time_hm": "11:30",
+            "duration_minutes": 30,
+            "dental_case_code": "EMERGENCY"
+          },
+          {
+            "datetime_str": "2026-04-02T11:45:00+00:00",
+            "display": "Thứ 5, 02/04 – 11:45 (30p · Đau cấp / sưng nướu / cần xử lý nhanh)",
+            "time_hm": "11:45",
+            "duration_minutes": 30,
+            "dental_case_code": "EMERGENCY"
+          },
+          {
+            "datetime_str": "2026-04-02T12:00:00+00:00",
+            "display": "Thứ 5, 02/04 – 12:00 (30p · Đau cấp / sưng nướu / cần xử lý nhanh)",
+            "time_hm": "12:00",
+            "duration_minutes": 30,
+            "dental_case_code": "EMERGENCY"
+          }
+        ]
+      }
+    },
+    {
+      "date_iso": "2026-04-03",
+      "python_weekday": 4,
+      "ten_thu_vi": "Thứ 6",
+      "la_ngay_lam_viec_phong_kham": true,
+      "theo_loai_kham": {
+        "CAVITY": [
+          {
+            "datetime_str": "2026-04-03T08:00:00+00:00",
+            "display": "Thứ 6, 03/04 – 08:00 (15p · Sâu răng / khắc phục sâu răng)",
+            "time_hm": "08:00",
+            "duration_minutes": 15,
+            "dental_case_code": "CAVITY"
+          },
+          {
+            "datetime_str": "2026-04-03T08:15:00+00:00",
+            "display": "Thứ 6, 03/04 – 08:15 (15p · Sâu răng / khắc phục sâu răng)",
+            "time_hm": "08:15",
+            "duration_minutes": 15,
+            "dental_case_code": "CAVITY"
+          }
+        ],
+        "IMPLANT": [
+          {
+            "datetime_str": "2026-04-03T08:00:00+00:00",
+            "display": "Thứ 6, 03/04 – 08:00 (60p · Trồng răng / implant)",
+            "time_hm": "08:00",
+            "duration_minutes": 60,
+            "dental_case_code": "IMPLANT"
+          }
+        ],
+        "GINGIVITIS": [
+          {
+            "datetime_str": "2026-04-03T10:00:00+00:00",
+            "display": "Thứ 6, 03/04 – 10:00 (30p · Viêm nướu / nha chu)",
+            "time_hm": "10:00",
+            "duration_minutes": 30,
+            "dental_case_code": "GINGIVITIS"
+          },
+          {
+            "datetime_str": "2026-04-03T10:15:00+00:00",
+            "display": "Thứ 6, 03/04 – 10:15 (30p · Viêm nướu / nha chu)",
+            "time_hm": "10:15",
+            "duration_minutes": 30,
+            "dental_case_code": "GINGIVITIS"
+          },
+          {
+            "datetime_str": "2026-04-03T10:30:00+00:00",
+            "display": "Thứ 6, 03/04 – 10:30 (30p · Viêm nướu / nha chu)",
+            "time_hm": "10:30",
+            "duration_minutes": 30,
+            "dental_case_code": "GINGIVITIS"
+          },
+          {
+            "datetime_str": "2026-04-03T11:30:00+00:00",
+            "display": "Thứ 6, 03/04 – 11:30 (30p · Viêm nướu / nha chu)",
+            "time_hm": "11:30",
+            "duration_minutes": 30,
+            "dental_case_code": "GINGIVITIS"
+          }
+        ],
+        "SCALING": [
+          {
+            "datetime_str": "2026-04-03T13:30:00+00:00",
+            "display": "Thứ 6, 03/04 – 13:30 (15p · Cạo vôi / vệ sinh răng miệng)",
+            "time_hm": "13:30",
+            "duration_minutes": 15,
+            "dental_case_code": "SCALING"
+          },
+          {
+            "datetime_str": "2026-04-03T13:45:00+00:00",
+            "display": "Thứ 6, 03/04 – 13:45 (15p · Cạo vôi / vệ sinh răng miệng)",
+            "time_hm": "13:45",
+            "duration_minutes": 15,
+            "dental_case_code": "SCALING"
+          },
+          {
+            "datetime_str": "2026-04-03T14:00:00+00:00",
+            "display": "Thứ 6, 03/04 – 14:00 (15p · Cạo vôi / vệ sinh răng miệng)",
+            "time_hm": "14:00",
+            "duration_minutes": 15,
+            "dental_case_code": "SCALING"
+          },
+          {
+            "datetime_str": "2026-04-03T14:15:00+00:00",
+            "display": "Thứ 6, 03/04 – 14:15 (15p · Cạo vôi / vệ sinh răng miệng)",
+            "time_hm": "14:15",
+            "duration_minutes": 15,
+            "dental_case_code": "SCALING"
+          },
+          {
+            "datetime_str": "2026-04-03T14:30:00+00:00",
+            "display": "Thứ 6, 03/04 – 14:30 (15p · Cạo vôi / vệ sinh răng miệng)",
+            "time_hm": "14:30",
+            "duration_minutes": 15,
+            "dental_case_code": "SCALING"
+          },
+          {
+            "datetime_str": "2026-04-03T14:45:00+00:00",
+            "display": "Thứ 6, 03/04 – 14:45 (15p · Cạo vôi / vệ sinh răng miệng)",
+            "time_hm": "14:45",
+            "duration_minutes": 15,
+            "dental_case_code": "SCALING"
+          },
+          {
+            "datetime_str": "2026-04-03T15:00:00+00:00",
+            "display": "Thứ 6, 03/04 – 15:00 (15p · Cạo vôi / vệ sinh răng miệng)",
+            "time_hm": "15:00",
+            "duration_minutes": 15,
+            "dental_case_code": "SCALING"
+          },
+          {
+            "datetime_str": "2026-04-03T15:15:00+00:00",
+            "display": "Thứ 6, 03/04 – 15:15 (15p · Cạo vôi / vệ sinh răng miệng)",
+            "time_hm": "15:15",
+            "duration_minutes": 15,
+            "dental_case_code": "SCALING"
+          },
+          {
+            "datetime_str": "2026-04-03T15:30:00+00:00",
+            "display": "Thứ 6, 03/04 – 15:30 (15p · Cạo vôi / vệ sinh răng miệng)",
+            "time_hm": "15:30",
+            "duration_minutes": 15,
+            "dental_case_code": "SCALING"
+          },
+          {
+            "datetime_str": "2026-04-03T15:45:00+00:00",
+            "display": "Thứ 6, 03/04 – 15:45 (15p · Cạo vôi / vệ sinh răng miệng)",
+            "time_hm": "15:45",
+            "duration_minutes": 15,
+            "dental_case_code": "SCALING"
+          },
+          {
+            "datetime_str": "2026-04-03T16:00:00+00:00",
+            "display": "Thứ 6, 03/04 – 16:00 (15p · Cạo vôi / vệ sinh răng miệng)",
+            "time_hm": "16:00",
+            "duration_minutes": 15,
+            "dental_case_code": "SCALING"
+          },
+          {
+            "datetime_str": "2026-04-03T16:15:00+00:00",
+            "display": "Thứ 6, 03/04 – 16:15 (15p · Cạo vôi / vệ sinh răng miệng)",
+            "time_hm": "16:15",
+            "duration_minutes": 15,
+            "dental_case_code": "SCALING"
+          }
+        ],
+        "EMERGENCY": [
+          {
+            "datetime_str": "2026-04-03T10:00:00+00:00",
+            "display": "Thứ 6, 03/04 – 10:00 (30p · Đau cấp / sưng nướu / cần xử lý nhanh)",
+            "time_hm": "10:00",
+            "duration_minutes": 30,
+            "dental_case_code": "EMERGENCY"
+          },
+          {
+            "datetime_str": "2026-04-03T10:15:00+00:00",
+            "display": "Thứ 6, 03/04 – 10:15 (30p · Đau cấp / sưng nướu / cần xử lý nhanh)",
+            "time_hm": "10:15",
+            "duration_minutes": 30,
+            "dental_case_code": "EMERGENCY"
+          },
+          {
+            "datetime_str": "2026-04-03T10:30:00+00:00",
+            "display": "Thứ 6, 03/04 – 10:30 (30p · Đau cấp / sưng nướu / cần xử lý nhanh)",
+            "time_hm": "10:30",
+            "duration_minutes": 30,
+            "dental_case_code": "EMERGENCY"
+          },
+          {
+            "datetime_str": "2026-04-03T11:30:00+00:00",
+            "display": "Thứ 6, 03/04 – 11:30 (30p · Đau cấp / sưng nướu / cần xử lý nhanh)",
+            "time_hm": "11:30",
+            "duration_minutes": 30,
+            "dental_case_code": "EMERGENCY"
+          },
+          {
+            "datetime_str": "2026-04-03T11:45:00+00:00",
+            "display": "Thứ 6, 03/04 – 11:45 (30p · Đau cấp / sưng nướu / cần xử lý nhanh)",
+            "time_hm": "11:45",
+            "duration_minutes": 30,
+            "dental_case_code": "EMERGENCY"
+          },
+          {
+            "datetime_str": "2026-04-03T12:00:00+00:00",
+            "display": "Thứ 6, 03/04 – 12:00 (30p · Đau cấp / sưng nướu / cần xử lý nhanh)",
+            "time_hm": "12:00",
+            "duration_minutes": 30,
+            "dental_case_code": "EMERGENCY"
+          }
+        ]
+      }
+    },
+    {
+      "date_iso": "2026-04-04",
+      "python_weekday": 5,
+      "ten_thu_vi": "Thứ 7",
+      "la_ngay_lam_viec_phong_kham": false,
+      "theo_loai_kham": {
+        "CAVITY": [],
+        "IMPLANT": [],
+        "GINGIVITIS": [],
+        "SCALING": [],
+        "EMERGENCY": []
+      }
+    },
+    {
+      "date_iso": "2026-04-05",
+      "python_weekday": 6,
+      "ten_thu_vi": "Chủ nhật",
+      "la_ngay_lam_viec_phong_kham": false,
+      "theo_loai_kham": {
+        "CAVITY": [],
+        "IMPLANT": [],
+        "GINGIVITIS": [],
+        "SCALING": [],
+        "EMERGENCY": []
+      }
+    }
+  ]
+}

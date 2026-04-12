@@ -1,16 +1,22 @@
-from datetime import datetime, timedelta, timezone
+from datetime import datetime
 from typing import Optional
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Query
 from jose import JWTError
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.models.reservation import Reservation
-from app.schemas.reservation import ReservationResponse, SlotsResponse
+from app.schemas.reservation import AvailableSlot, ReservationResponse, SlotsResponse
+from app.domain.dental_cases import normalize_case_code
 from app.services import auth_service
-from app.tools.schedule_tools import _generate_mock_slots
+from app.services.mock_week_schedule_loader import (
+    build_week_availability_payload,
+    first_mock_date_iso_for_case,
+    get_mock_slots_for_date_and_case,
+    list_mock_date_isos,
+)
 
 router = APIRouter()
 
@@ -33,28 +39,51 @@ async def _get_current_user(authorization: Optional[str], db: AsyncSession):
 @router.get("/slots", response_model=SlotsResponse)
 async def get_available_slots(
     date: Optional[str] = Query(default=None, description="YYYY-MM-DD"),
-    authorization: Optional[str] = Header(default=None),
-    db: AsyncSession = Depends(get_db),
+    case: Optional[str] = Query(
+        default=None,
+        description="CAVITY | IMPLANT | GINGIVITIS | SCALING | EMERGENCY",
+    ),
 ):
-    """Return mock available appointment slots for a given date."""
-    await _get_current_user(authorization, db)
+    """Slot trong một ngày — chỉ từ file mock (dev: không cần JWT)."""
+    code = normalize_case_code(case)
+    mock_days = set(list_mock_date_isos())
 
     if date:
         try:
-            target = datetime.fromisoformat(date)
+            d_iso = datetime.fromisoformat(date.strip()).date().isoformat()
         except ValueError:
             raise HTTPException(status_code=400, detail="Invalid date format. Use YYYY-MM-DD.")
     else:
-        target = datetime.now(timezone.utc) + timedelta(days=1)
+        d_iso = first_mock_date_iso_for_case(code)
 
-    while target.weekday() >= 5:
-        target += timedelta(days=1)
+    if d_iso not in mock_days:
+        return SlotsResponse(date=d_iso, dental_case_code=code, slots=[])
 
-    raw_slots = _generate_mock_slots(target)
-    from app.schemas.reservation import AvailableSlot
+    raw_slots = get_mock_slots_for_date_and_case(d_iso, code, limit=12)
+    slots = [AvailableSlot.model_validate(s) for s in raw_slots]
+    return SlotsResponse(
+        date=d_iso,
+        dental_case_code=code,
+        slots=slots,
+    )
 
-    slots = [AvailableSlot(**s) for s in raw_slots[:12]]
-    return SlotsResponse(date=target.strftime("%Y-%m-%d"), slots=slots)
+
+@router.get("/week/slots")
+async def get_week_slots_mock(
+    case: Optional[str] = Query(
+        default=None,
+        description="Lọc một mã loại khám; bỏ trống = trả đủ loại mỗi ngày",
+    ),
+    week_start: Optional[str] = Query(
+        default=None,
+        description="YYYY-MM-DD phải khớp meta.tuan_bat_dau_iso trong file mock",
+    ),
+):
+    """Lịch mock cả tuần (dev: không cần JWT)."""
+    return build_week_availability_payload(
+        dental_case_code=case,
+        week_start_iso=week_start,
+    )
 
 
 @router.get("/reservations", response_model=list[ReservationResponse])
@@ -62,7 +91,7 @@ async def list_reservations(
     authorization: Optional[str] = Header(default=None),
     db: AsyncSession = Depends(get_db),
 ):
-    """Return all reservations for the authenticated patient."""
+    """Danh sách reservation của user — vẫn yêu cầu JWT."""
     user = await _get_current_user(authorization, db)
     result = await db.execute(
         select(Reservation)

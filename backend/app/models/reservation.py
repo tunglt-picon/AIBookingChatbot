@@ -39,6 +39,8 @@ class BookingConsultIntake(Base):
     )
     symptoms: Mapped[Optional[str]] = mapped_column(Text)
     ai_diagnosis: Mapped[Optional[str]] = mapped_column(Text)
+    # Phân loại lý do khám (mock đặt lịch): CAVITY | IMPLANT | GINGIVITIS | SCALING | EMERGENCY
+    dental_case_code: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     needs_visit: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(

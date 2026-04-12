@@ -7,7 +7,6 @@ The mock generates realistic time slots and writes reservations to PostgreSQL.
 
 import json
 import logging
-import re
 from datetime import date, datetime, timedelta, timezone
 from typing import Optional
 
@@ -15,42 +14,24 @@ from langchain_core.tools import tool
 
 logger = logging.getLogger(__name__)
 
-# Clinic grid (30-minute steps, weekdays) — shared by mock slots and availability resolver
-SLOT_TIMES: tuple[str, ...] = (
-    "08:00", "08:30", "09:00", "09:30", "10:00", "10:30",
-    "11:00", "11:30", "13:30", "14:00", "14:30", "15:00",
-    "15:30", "16:00", "16:30",
-)
 
-_VI_DAY_NAMES: tuple[str, ...] = ("Thứ 2", "Thứ 3", "Thứ 4", "Thứ 5", "Thứ 6")
-
-
-def _booked_slot_indices(d: datetime) -> set[int]:
-    """Deterministic mock: two slots per day are treated as already taken."""
-    n = len(SLOT_TIMES)
-    return {d.day % n, (d.day + 3) % n}
-
-
-def _slot_display_label(d: datetime, time_str: str) -> str:
-    day_name = _VI_DAY_NAMES[d.weekday()]
-    return f"{day_name}, {d.strftime('%d/%m')} – {time_str}"
-
-
-def _minutes_since_midnight(time_str: str) -> int:
-    h, m = map(int, time_str.split(":"))
-    return h * 60 + m
-
-
-def resolve_requested_slot(date_iso: str, hour: int, minute: int) -> dict:
+def resolve_requested_slot(
+    date_iso: str,
+    hour: int,
+    minute: int,
+    dental_case_code: Optional[str] = None,
+) -> dict:
     """
-    Check mock availability for a requested wall time on date_iso (YYYY-MM-DD).
-
-    Returns:
-        kind: "exact_available" | "suggest" | "closed"
-        slot: dict | None  — chosen slot if exact_available
-        alternatives: list[dict] — nearest free slots (for suggest)
-        requested_label: str — HH:MM requested (after snapping to grid)
+    Kiểm tra lịch theo **loại lý do khám** (thời lượng + khung giờ riêng).
     """
+    from app.domain.dental_cases import (
+        build_slot_dict,
+        minutes_to_hm,
+        normalize_case_code,
+        valid_start_minutes_for_case,
+    )
+
+    code = normalize_case_code(dental_case_code)
     try:
         raw = date_iso.strip()
         day = date.fromisoformat(raw) if len(raw) <= 10 else datetime.fromisoformat(raw).date()
@@ -71,53 +52,45 @@ def resolve_requested_slot(date_iso: str, hour: int, minute: int) -> dict:
         }
 
     base = datetime(day.year, day.month, day.day, tzinfo=timezone.utc)
-    booked = _booked_slot_indices(base)
-    req_mins = hour * 60 + minute
-    grid_min = _minutes_since_midnight(SLOT_TIMES[0])
-    grid_max = _minutes_since_midnight(SLOT_TIMES[-1])
-    snapped = round(req_mins / 30) * 30
-    snapped = max(grid_min, min(int(snapped), grid_max))
-
-    def build_slot(idx: int) -> dict:
-        ts = SLOT_TIMES[idx]
-        h, m = map(int, ts.split(":"))
-        slot_dt = base.replace(hour=h, minute=m, second=0, microsecond=0)
+    starts = valid_start_minutes_for_case(day, code)
+    if not starts:
         return {
-            "datetime_str": slot_dt.isoformat(),
-            "display": _slot_display_label(base, ts),
+            "kind": "closed",
+            "slot": None,
+            "alternatives": [],
+            "requested_label": f"{hour:02d}:{minute:02d}",
         }
 
-    snap_idx = min(
-        range(len(SLOT_TIMES)),
-        key=lambda i: abs(_minutes_since_midnight(SLOT_TIMES[i]) - snapped),
-    )
-    requested_label = SLOT_TIMES[snap_idx]
+    req_mins = hour * 60 + minute
+    snapped = int(round(req_mins / 15) * 15)
+    snapped = max(0, min(snapped, 24 * 60 - 1))
 
-    available_indices = [i for i in range(len(SLOT_TIMES)) if i not in booked]
-
-    if snap_idx not in booked:
+    if snapped in starts:
+        slot = build_slot_dict(base, snapped, code)
         return {
             "kind": "exact_available",
-            "slot": build_slot(snap_idx),
+            "slot": slot,
             "alternatives": [],
-            "requested_label": requested_label,
+            "requested_label": slot.get("time_hm", minutes_to_hm(snapped)),
         }
 
-    # Requested grid slot is "taken" — suggest nearest free slots by time distance
-    alts: list[dict] = []
-    for i in sorted(
-        available_indices,
-        key=lambda i: abs(_minutes_since_midnight(SLOT_TIMES[i]) - _minutes_since_midnight(requested_label)),
-    ):
-        alts.append(build_slot(i))
-        if len(alts) >= 4:
-            break
+    nearest = min(starts, key=lambda s: abs(s - req_mins))
+    if abs(nearest - req_mins) <= 22:
+        slot = build_slot_dict(base, nearest, code)
+        return {
+            "kind": "exact_available",
+            "slot": slot,
+            "alternatives": [],
+            "requested_label": slot.get("time_hm", minutes_to_hm(nearest)),
+        }
 
+    alts_sorted = sorted(starts, key=lambda s: abs(s - req_mins))[:6]
+    alts = [build_slot_dict(base, s, code) for s in alts_sorted]
     return {
         "kind": "suggest",
         "slot": None,
         "alternatives": alts,
-        "requested_label": requested_label,
+        "requested_label": minutes_to_hm(snapped),
     }
 
 
@@ -166,58 +139,84 @@ def infer_date_str_from_user_text(user_text: str) -> Optional[str]:
     return None
 
 
-def _generate_mock_slots(date: datetime) -> list[dict]:
-    """Generate available 30-min slots for a clinic day (08:00–17:00, weekdays only)."""
-    slots = []
-    if date.weekday() >= 5:  # skip weekends
-        return slots
-
-    booked_indices = _booked_slot_indices(date)
-    day_name = _VI_DAY_NAMES[date.weekday()]
-
-    for i, time_str in enumerate(SLOT_TIMES):
-        if i not in booked_indices:
-            h, m = map(int, time_str.split(":"))
-            slot_dt = date.replace(hour=h, minute=m, second=0, microsecond=0)
-            slots.append({
-                "datetime_str": slot_dt.isoformat(),
-                "display": f"{day_name}, {date.strftime('%d/%m')} – {time_str}",
-            })
-    return slots
-
-
 @tool
-async def get_available_slots(date_str: Optional[str] = None) -> str:
+async def get_mock_schedule(
+    scope: str = "day",
+    date_str: Optional[str] = None,
+    dental_case_code: Optional[str] = None,
+    week_start_iso: Optional[str] = None,
+) -> str:
     """
-    Get available appointment slots for a given date.
+    Đọc lịch trống **chỉ từ file mock** `lich_trong_tuan_trong_vi.json` (không gọi thuật toán sinh slot).
 
     Args:
-        date_str: Date in YYYY-MM-DD format. Defaults to the next working day.
+        scope: "day" — một ngày; "week" — cả tuần trong file.
+        date_str: YYYY-MM-DD khi scope=day. Bỏ trống → chọn ngày đầu tiên trong file có slot cho dental_case_code.
+        dental_case_code: CAVITY | IMPLANT | GINGIVITIS | SCALING | EMERGENCY (mặc định SCALING).
+        week_start_iso: Khi scope=week, phải khớp meta.tuan_bat_dau_iso nếu truyền; bỏ trống = tuần mặc định file.
 
     Returns:
-        JSON string with list of available slots, each containing
-        'datetime_str' (ISO format) and 'display' (human-readable Vietnamese label).
+        scope=day: JSON { scope, ok, date, dental_case_code, slots, nguon_du_lieu, loi? }.
+        scope=week: JSON { scope, ok, meta, ngay, nguon_du_lieu, loi? } (cấu trúc như build_week_availability_payload).
     """
-    if not date_str:
-        target = datetime.now(timezone.utc) + timedelta(days=1)
+    from app.domain.dental_cases import normalize_case_code
+
+    from app.services.mock_week_schedule_loader import (
+        build_week_availability_payload,
+        first_mock_date_iso_for_case,
+        get_mock_slots_for_date_and_case,
+        list_mock_date_isos,
+    )
+
+    code = normalize_case_code(dental_case_code)
+    src = "lich_trong_tuan_trong_vi.json"
+    low = (scope or "day").strip().lower()
+
+    if low in ("week", "tuan", "whole_week", "ca_tuan"):
+        payload = build_week_availability_payload(
+            dental_case_code=dental_case_code,
+            week_start_iso=week_start_iso,
+        )
+        payload["scope"] = "week"
+        payload["nguon_du_lieu"] = src
+        logger.info(
+            "[tool] get_mock_schedule week case=%s week=%s ok=%s",
+            dental_case_code,
+            week_start_iso,
+            payload.get("ok"),
+        )
+        return json.dumps(payload, ensure_ascii=False)
+
+    mock_days = set(list_mock_date_isos())
+    if date_str and date_str.strip():
+        d_iso = date_str.strip()[:10]
     else:
-        try:
-            target = datetime.fromisoformat(date_str.strip())
-        except ValueError:
-            target = datetime.now(timezone.utc) + timedelta(days=1)
+        d_iso = first_mock_date_iso_for_case(code)
 
-    # Advance to next weekday if needed
-    while target.weekday() >= 5:
-        target += timedelta(days=1)
+    if d_iso not in mock_days:
+        return json.dumps(
+            {
+                "scope": "day",
+                "ok": False,
+                "date": d_iso,
+                "dental_case_code": code,
+                "slots": [],
+                "nguon_du_lieu": src,
+                "loi": f"Ngày {d_iso} không có trong file mock. Các ngày có dữ liệu: {sorted(mock_days)}",
+            },
+            ensure_ascii=False,
+        )
 
-    slots = _generate_mock_slots(target)
-    if not slots:
-        # fallback – try next day
-        target += timedelta(days=1)
-        slots = _generate_mock_slots(target)
-
-    payload = {"date": target.strftime("%Y-%m-%d"), "slots": slots[:12]}
-    logger.info("[tool] get_available_slots date=%s count=%s", payload["date"], len(payload["slots"]))
+    slots = get_mock_slots_for_date_and_case(d_iso, code, limit=12)
+    payload = {
+        "scope": "day",
+        "ok": True,
+        "date": d_iso,
+        "dental_case_code": code,
+        "slots": slots,
+        "nguon_du_lieu": src,
+    }
+    logger.info("[tool] get_mock_schedule day date=%s case=%s count=%s", d_iso, code, len(slots))
     return json.dumps(payload, ensure_ascii=False)
 
 

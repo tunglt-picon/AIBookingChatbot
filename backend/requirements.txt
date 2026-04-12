@@ -8,10 +8,6 @@ sqlalchemy[asyncio]
 asyncpg
 alembic
 
-# ── Redis ─────────────────────────────────────────
-redis[asyncio]
-hiredis
-
 # ── Validation & Settings ────────────────────────
 pydantic
 pydantic-settings
@@ -36,9 +32,6 @@ langfuse
 # ── Eval Frameworks (placeholders - install when needed) ─
 # deepeval
 # ragas
-
-# ── Image Processing ─────────────────────────────
-pillow
 
 # ── HTTP Client ──────────────────────────────────
 httpx

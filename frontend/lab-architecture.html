@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="vi" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Kiến trúc &amp; Data flow – SmileCare AI</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          colors: { brand: { DEFAULT: "#38bdf8", dark: "#0ea5e9" } },
+          fontFamily: { sans: ["Inter", "system-ui", "sans-serif"] },
+        },
+      },
+    };
+  </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/custom.css" />
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+  <script>
+    mermaid.initialize({
+      startOnLoad: true,
+      theme: "dark",
+      securityLevel: "loose",
+      flowchart: { useMaxWidth: true, curve: "basis" },
+      sequence: { useMaxWidth: true },
+      themeVariables: {
+        darkMode: true,
+        background: "#0f172a",
+        primaryColor: "#1e293b",
+        primaryTextColor: "#f1f5f9",
+        primaryBorderColor: "#38bdf8",
+        lineColor: "#64748b",
+        actorBkg: "#1e293b",
+        actorBorder: "#38bdf8",
+        actorTextColor: "#f1f5f9",
+        fontFamily: "Inter, system-ui, sans-serif",
+      },
+    });
+  </script>
+</head>
+<body class="bg-slate-900 text-slate-100 font-sans antialiased min-h-screen">
+  <header class="border-b border-slate-700/60 bg-slate-800/40 backdrop-blur sticky top-0 z-10">
+    <div class="max-w-5xl mx-auto px-4 sm:px-6 py-3 flex flex-wrap items-center gap-2 sm:gap-3">
+      <h1 class="text-lg font-semibold text-white">Kiến trúc tổng quan &amp; data flow</h1>
+      <div class="w-full sm:w-auto sm:ml-auto flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
+        <a href="admin.html" class="text-sky-400 hover:text-sky-300">Phòng lab</a>
+        <span class="text-slate-600 hidden sm:inline">·</span>
+        <a href="lab-langgraph.html" class="text-violet-400 hover:text-violet-300">Sơ đồ LangGraph</a>
+        <span class="text-slate-600 hidden sm:inline">·</span>
+        <a href="index.html" class="text-slate-400 hover:text-slate-200">← Chat</a>
+      </div>
+    </div>
+  </header>
+
+  <main class="max-w-5xl mx-auto px-4 sm:px-6 py-8 space-y-12">
+    <section class="space-y-3">
+      <h2 class="text-base font-semibold text-white">Mục đích trang này</h2>
+      <p class="text-sm text-slate-400 leading-relaxed">
+        Giải thích <strong class="text-slate-200">thành phần hệ thống</strong>, <strong class="text-slate-200">đường đi dữ liệu</strong> từ trình duyệt tới
+        PostgreSQL và file mock lịch, và mối liên hệ với <strong class="text-slate-200">LangGraph</strong> (chi tiết từng nút xem
+        <a href="lab-langgraph.html" class="text-violet-400 hover:underline">Sơ đồ LangGraph</a>).
+      </p>
+    </section>
+
+    <section class="rounded-2xl border border-slate-700/60 bg-slate-800/40 p-4 sm:p-6 space-y-4">
+      <h2 class="text-base font-semibold text-white">1. Lớp hệ thống (tổng quan)</h2>
+      <p class="text-sm text-slate-400 leading-relaxed">
+        Client chỉ gọi REST (JSON / SSE). Backend gom xác thực, chat, lịch; agent chạy trong tiến trình backend, đọc/ghi DB và đọc JSON mock.
+      </p>
+      <div class="mermaid">
+flowchart TB
+  subgraph client["Client"]
+    WEB["Trình duyệt<br/>index.html · admin lab"]
+  end
+  subgraph api["FastAPI backend/app/main.py"]
+    AUTH["/api/v1/auth"]
+    CHAT["/api/v1/chat<br/>SSE"]
+    SCH["/api/v1/schedule"]
+    LAB["/api/v1/admin/lab"]
+  end
+  subgraph agents["LangGraph · app/agents/graph.py"]
+    G["StateGraph + MemorySaver"]
+  end
+  subgraph data["Dữ liệu"]
+    PG[("PostgreSQL")]
+    MOCK["backend/data/mock/*.json<br/>lịch + rubric triage"]
+  end
+
+  WEB --> AUTH
+  WEB --> CHAT
+  WEB --> SCH
+  WEB --> LAB
+  CHAT --> G
+  G --> PG
+  G --> MOCK
+  SCH --> MOCK
+  SCH --> PG
+  LAB --> G
+      </div>
+    </section>
+
+    <section class="rounded-2xl border border-slate-700/60 bg-slate-800/40 p-4 sm:p-6 space-y-4">
+      <h2 class="text-base font-semibold text-white">2. Một tin nhắn chat — data flow (SSE)</h2>
+      <p class="text-sm text-slate-400 leading-relaxed">
+        Luồng thực tế trong <code class="text-sky-300">POST /chat/sessions/{id}/messages</code>
+        (<span class="text-slate-500">chat.py</span>): lưu tin nhắn người dùng → chạy graph → stream sự kiện (status / token / done).
+      </p>
+      <div class="mermaid">
+sequenceDiagram
+  autonumber
+  participant U as Trình duyệt
+  participant API as FastAPI chat
+  participant DB as PostgreSQL
+  participant G as LangGraph
+  participant Tool as Tools Python
+  participant F as File mock JSON
+
+  U->>API: POST message (Form + Bearer trong form)
+  API->>DB: INSERT tin nhắn user
+  API->>G: astream_events(input_state + thread_id=session_id)
+  G->>G: classify_intent … (các nút theo intent)
+  G->>Tool: save_consult_intake / get_mock_schedule / book_appointment
+  Tool->>DB: INSERT/UPDATE intake, reservation
+  Tool->>F: Đọc lich_trong_tuan_trong_vi.json
+  G-->>API: on_chain_* / on_chat_model_stream
+  API-->>U: SSE: status, token, done
+      </div>
+      <ul class="text-xs text-slate-500 space-y-1 list-disc pl-5">
+        <li>Checkpoint <code class="text-slate-400">MemorySaver</code>: state graph theo <code class="text-slate-400">thread_id = session_id</code> (mất khi restart server).</li>
+        <li>Tin nhắn lịch sử chat lưu bảng message; state graph là tầng riêng cho agent.</li>
+      </ul>
+    </section>
+
+    <section class="rounded-2xl border border-slate-700/60 bg-slate-800/40 p-4 sm:p-6 space-y-4">
+      <h2 class="text-base font-semibold text-white">3. Luồng tư vấn → lịch (happy path)</h2>
+      <p class="text-sm text-slate-400 leading-relaxed">
+        Sau khi <code class="text-sky-300">dental_specialist</code> chốt <code class="text-amber-200/90">needs_visit: true</code>, graph nối tiếp các bước sau (không có thêm HTTP ra ngoài).
+      </p>
+      <div class="mermaid">
+flowchart LR
+  A[dental_specialist<br/>triệu chứng + dental_case_code] --> B[save_intake<br/>PostgreSQL]
+  B --> C[query_slots<br/>get_mock_schedule]
+  C --> D[root_respond<br/>LLM + extra.message_ui]
+  D --> E[END]
+
+  C -.->|đọc| F[(lich_trong_tuan…json)]
+  B -.->|ghi| G[(booking_consult_intakes)]
+      </div>
+    </section>
+
+    <section class="rounded-2xl border border-slate-700/60 bg-slate-800/40 p-4 sm:p-6 space-y-4">
+      <h2 class="text-base font-semibold text-white">4. Dữ liệu tĩnh &amp; rubric (mock)</h2>
+      <div class="overflow-x-auto text-sm text-slate-300">
+        <table class="w-full border-collapse min-w-[520px]">
+          <thead>
+            <tr class="text-left text-xs text-slate-500 border-b border-slate-600/80">
+              <th class="py-2 pr-3">Đường dẫn</th>
+              <th class="py-2">Vai trò</th>
+            </tr>
+          </thead>
+          <tbody class="text-slate-400 divide-y divide-slate-700/50">
+            <tr>
+              <td class="py-2 pr-3 font-mono text-xs text-sky-300/90">backend/data/mock/lich_trong_tuan_trong_vi.json</td>
+              <td class="py-2">Slot trống theo ngày / mã CAVITY…EMERGENCY — <code class="text-slate-500">get_mock_schedule</code>, <code class="text-slate-500">GET /schedule/*</code></td>
+            </tr>
+            <tr>
+              <td class="py-2 pr-3 font-mono text-xs text-sky-300/90">backend/data/mock/triage_symptom_rubric_vi.json</td>
+              <td class="py-2">Rubric triệu chứng ↔ mã khám + ví dụ — nạp vào prompt <code class="text-slate-500">dental_specialist</code></td>
+            </tr>
+            <tr>
+              <td class="py-2 pr-3 font-mono text-xs text-sky-300/90">backend/data/mock/triage_examples.tsv</td>
+              <td class="py-2">Nguồn TSV tái sinh rubric: <code class="text-slate-500">python scripts/build_triage_symptom_rubric.py</code></td>
+            </tr>
+            <tr>
+              <td class="py-2 pr-3 font-mono text-xs text-sky-300/90">app/domain/dental_cases.py</td>
+              <td class="py-2">Thời lượng ca + khung giờ theo mã (dùng khi sinh slot thuật toán / <code class="text-slate-500">resolve_requested_slot</code>)</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="rounded-2xl border border-slate-700/60 bg-slate-800/40 p-4 sm:p-6 space-y-3">
+      <h2 class="text-base font-semibold text-white">5. Bảng chính PostgreSQL (khái niệm)</h2>
+      <ul class="text-sm text-slate-400 space-y-2 list-disc pl-5 leading-relaxed">
+        <li><code class="text-amber-200/80">patient_users</code> — tài khoản BN, JWT <code class="text-slate-500">sub</code></li>
+        <li><code class="text-amber-200/80">booking_chat_sessions</code> + <code class="text-amber-200/80">booking_chat_messages</code> — hội thoại UI</li>
+        <li><code class="text-amber-200/80">booking_consult_intakes</code> — tóm tắt triệu chứng sau specialist, <code class="text-slate-500">dental_case_code</code></li>
+        <li><code class="text-amber-200/80">reservations</code> — lịch đã đặt, liên kết intake</li>
+      </ul>
+    </section>
+
+    <section class="rounded-2xl border border-slate-700/60 bg-slate-800/40 p-4 sm:p-6 space-y-3">
+      <h2 class="text-base font-semibold text-white">6. Phòng lab (dev)</h2>
+      <p class="text-sm text-slate-400 leading-relaxed">
+        <a href="admin.html" class="text-sky-400 hover:underline">admin.html</a> — gọi trực tiếp từng node agent hoặc tool, không cần JWT cho hầu hết tool/lab.
+        REST nhanh trên cùng trang để đối chiếu với file mock (cột phải «Dữ liệu mock»).
+      </p>
+      <p class="text-sm text-slate-400 leading-relaxed">
+        API bổ sung: <code class="text-slate-500">GET /api/v1/admin/lab/triage-rubric</code> — dump JSON rubric;
+        <code class="text-slate-500">GET …/mock-schedule-summary</code> — tóm tắt slot theo tuần.
+      </p>
+    </section>
+
+    <section class="rounded-2xl border border-cyan-500/20 bg-cyan-950/15 p-4 sm:p-5">
+      <h2 class="text-sm font-semibold text-cyan-200 mb-2">Ghi chú vận hành</h2>
+      <ul class="text-xs text-slate-400 space-y-1.5 list-disc pl-4 leading-relaxed">
+        <li>Service <strong class="text-slate-300">Redis</strong> trong Docker Compose là <strong class="text-slate-300">tùy chọn</strong> — backend hiện không import client Redis trong code.</li>
+        <li>Upload ảnh / Pillow: cấu hình <code class="text-slate-500">UPLOAD_DIR</code> còn trong settings; API chat hiện chỉ nhận <strong class="text-slate-300">văn bản</strong> (Form field <code class="text-slate-500">message</code>).</li>
+      </ul>
+    </section>
+  </main>
+</body>
+</html>

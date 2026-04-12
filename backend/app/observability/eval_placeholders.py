@@ -3,8 +3,8 @@ Evaluation Placeholders
 ========================
 
 Stubs for DeepEval and Ragas integration.
-These functions are wired into the chat pipeline but return dummy metrics
-until the actual eval frameworks are installed and configured.
+These functions are **not** called from the chat pipeline yet; they return dummy metrics
+until you install eval frameworks and invoke them from your own jobs or tests.
 
 To activate:
   1. `pip install deepeval ragas`
