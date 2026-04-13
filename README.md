@@ -70,8 +70,9 @@ Optional: Redis container in Docker Compose is **not used by app code** yet (res
 | **Database** | PostgreSQL 16 | Docker Compose |
 | **Redis (Compose)** | Redis 7 | Optional sidecar — **not imported in Python** yet |
 | **Agents** | LangGraph 0.2 | Stateful multi-turn graph |
-| **Root agent** | Configurable text LLM (Ollama / OpenAI / compatible) | Intent + booking UX |
-| **Specialist agent** | Configurable **text** LLM | Symptom intake + `dental_case_code` (rubric in `data/mock/`) |
+| **Default LLM** | Google Gemini **2.5 Flash-Lite** (`LLM_PROVIDER=google`) | API key; stable for new accounts (2.0 Flash deprecated) |
+| **Root agent** | `GOOGLE_ROOT_MODEL` or Ollama / OpenAI / compatible | Intent + booking UX |
+| **Specialist agent** | `GOOGLE_SPECIALIST_MODEL` or same stack | Symptom intake + `dental_case_code` (rubric in `data/mock/`) |
 | **Observability** | Langfuse | Trace LLM calls |
 | **Eval (stub)** | DeepEval / Ragas | Placeholders, ready to wire |
 | **Auth** | JWT (python-jose) + bcrypt | Stateless |
@@ -234,16 +235,45 @@ All settings are read from `backend/.env`. See `.env.example` for the full list.
 
 ### LLM provider
 
-#### Option A: Ollama (local, default)
+#### Option A: Google Gemini (API key — default in repo)
+
+Use **Gemini 2.5** stable IDs — `gemini-2.0-flash` is deprecated for new API keys ([models doc](https://ai.google.dev/gemini-api/docs/models)). Defaults use the lightest stable option:
+
+```env
+LLM_PROVIDER=google
+GOOGLE_API_KEY=your-key
+GOOGLE_ROOT_MODEL=gemini-2.5-flash-lite
+GOOGLE_SPECIALIST_MODEL=gemini-2.5-flash-lite
+```
+
+Get a key at [Google AI Studio](https://aistudio.google.com/apikey).
+
+| Model ID | Typical use |
+|----------|-------------|
+| `gemini-2.5-flash-lite` | Default — lowest cost/latency for routing + intake |
+| `gemini-2.5-flash` | Better reasoning / structured JSON if needed |
+| `gemini-2.5-pro` | Heavier tasks only |
+
+Preview models (`gemini-3-*-preview`, etc.) change often; prefer stable IDs for production.
+
+**Kiểm tra model còn mở với API key của bạn** (Google returns the authoritative list):
+
+```bash
+curl -s "https://generativelanguage.googleapis.com/v1beta/models?key=$GOOGLE_API_KEY" | head -c 2000
+```
+
+Tìm các dòng `name` dạng `models/gemini-2.5-flash-lite` — trong `.env` chỉ cần phần sau `models/` (ví dụ `gemini-2.5-flash-lite`).
+
+#### Option B: Ollama (local)
 
 ```env
 LLM_PROVIDER=ollama
 OLLAMA_BASE_URL=http://localhost:11434
 ROOT_MODEL_NAME=qwen2.5:7b
-SPECIALIST_MODEL_NAME=llava:7b
+SPECIALIST_MODEL_NAME=qwen2.5:7b
 ```
 
-#### Option B: OpenAI API
+#### Option C: OpenAI API
 
 ```env
 LLM_PROVIDER=openai
@@ -252,14 +282,14 @@ OPENAI_ROOT_MODEL=gpt-4o-mini
 OPENAI_SPECIALIST_MODEL=gpt-4o
 ```
 
-#### Option C: OpenAI-compatible (Together, Groq, vLLM, LM Studio, …)
+#### Option D: OpenAI-compatible (Together, Groq, vLLM, LM Studio, …)
 
 ```env
 LLM_PROVIDER=openai_compatible
 OPENAI_COMPATIBLE_BASE_URL=https://api.together.xyz/v1
 OPENAI_COMPATIBLE_API_KEY=<your-key>
 OPENAI_COMPATIBLE_ROOT_MODEL=Qwen/Qwen2.5-7B-Instruct-Turbo
-OPENAI_COMPATIBLE_SPECIALIST_MODEL=meta-llama/Llama-3.2-11B-Vision-Instruct-Turbo
+OPENAI_COMPATIBLE_SPECIALIST_MODEL=Qwen/Qwen2.5-7B-Instruct-Turbo
 ```
 
 ### Merging control (limit follow-up questions)

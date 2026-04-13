@@ -278,13 +278,14 @@ function bindChatControls() {
       showToast("Select or create a session first.", "warning");
       return;
     }
-    await sendMessage(text);
     input.value = "";
+    await sendMessage(text);
   });
 
   // Enter = send; Cmd+Enter (Mac) or Ctrl+Enter (Windows) = new line in textarea
   input.addEventListener("keydown", (e) => {
     if (e.key !== "Enter") return;
+    if (e.isComposing || e.keyCode === 229) return;
     if (e.metaKey || e.ctrlKey) {
       return;
     }
@@ -360,6 +361,8 @@ async function sendMessage(text) {
     );
   } catch (err) {
     removeTypingIndicator(typingId);
+    const inp = $("chat-input");
+    if (inp) inp.value = text;
     showToast("Could not send message: " + err.message, "error");
   } finally {
     State.isStreaming = false;

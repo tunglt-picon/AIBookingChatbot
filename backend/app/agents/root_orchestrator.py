@@ -53,11 +53,28 @@ def _looks_like_booking_confirmation(text: str) -> bool:
     if len(low) > 80:
         return False
     keys = (
-        "đồng ý", "dong y", "xác nhận", "xac nhan", "ok", "chốt", "chot",
-        "đặt luôn", "dat luon", "yes", "confirm", "nhất trí", "nhat tri",
-        "đặt giúp", "dat giup", "giữ giúp", "giu giup",
+        "đồng ý", "dong y", "đúng rồi", "dung roi", "xác nhận", "xac nhan",
+        "ok", "chốt", "chot", "đặt luôn", "dat luon", "yes", "confirm",
+        "nhất trí", "nhat tri", "đặt giúp", "dat giup", "giữ giúp", "giu giup",
     )
     return any(k in low for k in keys)
+
+
+def _looks_like_post_triage_booking_yes(text: str) -> bool:
+    low = text.lower().strip()
+    if len(low) > 48:
+        return False
+    if _parse_first_time_hm(text) is not None:
+        return False
+    keys = (
+        "đúng rồi", "dung roi", "vâng ạ", "vang a", "vâng", "vang",
+        "dạ ạ", "da a", "chính xác", "chinh xac", "ừm", "um ", "uhm",
+        "ok", "yes", "có ạ", "co a",
+    )
+    if any(k in low for k in keys):
+        return True
+    short = low.rstrip(".,!?…")
+    return short in ("ừ", "uh", "dạ", "ạ", "vâng", "có")
 
 
 def _looks_like_booking_rejection(text: str) -> bool:
@@ -72,8 +89,38 @@ def _looks_like_booking_rejection(text: str) -> bool:
     return any(k in low for k in keys)
 
 
+def _slot_display_date_part(display: str) -> str:
+    """Tách phần ngày từ display slot (hỗ trợ cả gạch ngang ASCII và en-dash)."""
+    if not display or not isinstance(display, str):
+        return ""
+    s = display.strip()
+    m = re.match(r"^(.+?)\s*[–\-]\s*.+$", s)
+    return m.group(1).strip() if m else s
+
+
+def _time_labels_from_slots(slots: list) -> list[str]:
+    """Luôn trả về nhãn HH:MM cho chip UI (regex trên display nếu thiếu time_hm)."""
+    seen: set[str] = set()
+    out: list[str] = []
+    for s in slots:
+        if not isinstance(s, dict):
+            continue
+        label = ""
+        hm = s.get("time_hm")
+        if isinstance(hm, str) and hm.strip():
+            m = re.search(r"\b(\d{1,2}:\d{2})\b", hm.strip())
+            label = m.group(1) if m else hm.strip()
+        if not label:
+            disp = s.get("display") or ""
+            m2 = re.search(r"\b(\d{1,2}:\d{2})\b", disp)
+            label = m2.group(1) if m2 else ""
+        if label and label not in seen:
+            seen.add(label)
+            out.append(label)
+    return out
+
+
 def _parse_first_time_hm(user_text: str) -> tuple[int, int] | None:
-    import re
     low = user_text.lower()
     m = re.search(r"\b(\d{1,2})\s*:\s*(\d{2})\b", low)
     if m:
@@ -175,6 +222,17 @@ async def classify_intent_node(state: AgentState, config: RunnableConfig) -> dic
             "pending_confirmation_slot": None,
             "skip_root_respond": False,
         }
+
+    if (
+        state.get("triage_complete")
+        and not state.get("pending_confirmation_slot")
+        and _looks_like_post_triage_booking_yes(last_human)
+    ):
+        logger.info(
+            "[classify_intent] shortcut select_slot (post-triage affirmation) session_id=%s",
+            state["session_id"],
+        )
+        return {"intent": "select_slot", "current_agent": "root", "skip_root_respond": False}
 
     if not state.get("triage_complete"):
         if _looks_like_booking_intent(last_human):
@@ -508,16 +566,12 @@ async def confirm_booking_node(state: AgentState, config: RunnableConfig) -> dic
         slots = state.get("available_slots") or []
         if slots:
             d0 = slots[0].get("display", "")
-            date_disp = d0.split("–")[0].strip() if "–" in d0 else "ngày bạn đã chọn"
-            if not date_disp:
-                date_disp = "ngày bạn đã chọn"
-            time_labels = [
-                s.get("time_hm")
-                or s.get("display", "").split("–")[-1].split("(")[0].strip()
-                for s in slots
-            ]
+            date_disp = _slot_display_date_part(d0) or "ngày đề xuất"
+            time_labels = _time_labels_from_slots(slots)
             msg = (
-                f"Mình đã ghi nhận bạn muốn khám vào **{date_disp}**.\n\n"
+                f"Dưới đây là **các khung giờ còn trống** cho **{date_disp}** "
+                f"(hệ thống gợi ý ngày làm việc gần nhất; bạn có thể **gõ ngày khác** "
+                f"như *thứ 4* hoặc *02/04* nếu muốn đổi).\n\n"
                 f"**Chọn giờ** trong các nút bên dưới, hoặc **gõ giờ** trong ô chat "
                 f"(ví dụ **14:00** hoặc **9h**)."
             )

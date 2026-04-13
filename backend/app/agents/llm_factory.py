@@ -2,6 +2,7 @@
 LLM Factory – returns the appropriate ChatModel based on LLM_PROVIDER config.
 
 Supports:
+  - "google"           → ChatGoogleGenerativeAI (Gemini API — mặc định gemini-2.5-flash-lite)
   - "ollama"           → ChatOllama  (local Ollama server)
   - "openai"           → ChatOpenAI  (OpenAI API)
   - "openai_compatible" → ChatOpenAI with custom base_url
@@ -86,11 +87,30 @@ def _build_openai_compatible(model_name: str) -> BaseChatModel:
     )
 
 
+def _build_google(model_name: str) -> BaseChatModel:
+    from langchain_google_genai import ChatGoogleGenerativeAI
+
+    key = (settings.GOOGLE_API_KEY or "").strip()
+    if not key:
+        raise ValueError(
+            "LLM_PROVIDER=google cần GOOGLE_API_KEY trong .env (lấy tại https://aistudio.google.com/apikey )"
+        )
+    logger.info("[llm] ChatGoogleGenerativeAI model=%r", model_name)
+    return ChatGoogleGenerativeAI(
+        model=model_name,
+        google_api_key=key,
+        temperature=0.3,
+        streaming=True,
+    )
+
+
 def create_llm(role: ModelRole) -> BaseChatModel:
     """Create an LLM for the given agent role based on current settings."""
     provider = settings.LLM_PROVIDER.lower()
 
     if role == "root":
+        if provider == "google":
+            return _build_google(settings.GOOGLE_ROOT_MODEL)
         if provider == "ollama":
             return _build_ollama(settings.ROOT_MODEL_NAME)
         elif provider == "openai":
@@ -99,6 +119,8 @@ def create_llm(role: ModelRole) -> BaseChatModel:
             return _build_openai_compatible(settings.OPENAI_COMPATIBLE_ROOT_MODEL)
 
     elif role == "specialist":
+        if provider == "google":
+            return _build_google(settings.GOOGLE_SPECIALIST_MODEL)
         if provider == "ollama":
             return _build_ollama(settings.SPECIALIST_MODEL_NAME)
         elif provider == "openai":
@@ -114,7 +136,7 @@ def create_llm(role: ModelRole) -> BaseChatModel:
 def get_root_llm() -> BaseChatModel:
     model = create_llm("root")
     logger.info(
-        "[llm] root model ready provider=%s (see ROOT_MODEL_* / OPENAI_* in config)",
+        "[llm] root model ready provider=%s (see GOOGLE_* / ROOT_MODEL_* / OPENAI_* in config)",
         settings.LLM_PROVIDER,
     )
     return model

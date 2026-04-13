@@ -310,6 +310,12 @@ async def _stream_agent_response(
             elif kind == "on_chat_model_stream":
                 chunk = event["data"].get("chunk")
                 if chunk and chunk.content:
+                    metadata = event.get("metadata", {}) or {}
+                    node = metadata.get("langgraph_node", "")
+                    # classify_intent chỉ phân loại nội bộ — không stream ra client (tránh full_response
+                    # bị nhồi nhãn kiểu "select_slot" và bỏ qua fallback lấy AIMessage từ confirm_booking).
+                    if node == "classify_intent":
+                        continue
                     token_events += 1
                     token_text = (
                         chunk.content
@@ -320,11 +326,9 @@ async def _stream_agent_response(
                     yield _sse({"type": "token", "content": token_text})
 
                     # Detect which agent is producing tokens
-                    metadata = event.get("metadata", {})
-                    node = metadata.get("langgraph_node", "")
                     if node == "dental_specialist":
                         current_agent = "specialist"
-                    elif node in ("root_respond", "classify_intent"):
+                    elif node == "root_respond":
                         current_agent = "root"
 
             elif kind == "on_chat_model_end":

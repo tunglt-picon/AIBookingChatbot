@@ -28,13 +28,20 @@ class Settings(BaseSettings):
     REDIS_URL: str = "redis://localhost:6379"
 
     # ── LLM Configuration ────────────────────────
-    # Provider: "ollama" | "openai" | "openai_compatible"
-    LLM_PROVIDER: str = "ollama"
+    # Provider: "google" | "ollama" | "openai" | "openai_compatible"
+    LLM_PROVIDER: str = "google"
+
+    # Google AI Studio (Gemini) — https://aistudio.google.com/apikey
+    GOOGLE_API_KEY: str = ""
+    # Stable 2.5 (2.0 Flash đã deprecated cho user mới — xem https://ai.google.dev/gemini-api/docs/models )
+    # flash-lite: nhanh + rẻ nhất dòng 2.5; đổi sang gemini-2.5-flash nếu cần suy luận/JSON tốt hơn
+    GOOGLE_ROOT_MODEL: str = "gemini-2.5-flash-lite"
+    GOOGLE_SPECIALIST_MODEL: str = "gemini-2.5-flash-lite"
 
     # Ollama settings
     OLLAMA_BASE_URL: str = "http://localhost:11434"
     ROOT_MODEL_NAME: str = "qwen2.5:7b"
-    SPECIALIST_MODEL_NAME: str = "llava:7b"
+    SPECIALIST_MODEL_NAME: str = "qwen2.5:7b"
     # httpx timeouts for Ollama (prevents infinite hang if server is down or model stuck loading)
     OLLAMA_CONNECT_TIMEOUT: float = 10.0
     OLLAMA_READ_TIMEOUT: float = 300.0  # first inference / large models on CPU can take minutes
@@ -52,7 +59,7 @@ class Settings(BaseSettings):
     OPENAI_COMPATIBLE_BASE_URL: str = ""
     OPENAI_COMPATIBLE_API_KEY: str = "dummy"
     OPENAI_COMPATIBLE_ROOT_MODEL: str = "qwen2.5:7b"
-    OPENAI_COMPATIBLE_SPECIALIST_MODEL: str = "llava:7b"
+    OPENAI_COMPATIBLE_SPECIALIST_MODEL: str = "gpt-4o-mini"
 
     # ── Agent Behaviour ───────────────────────────
     MAX_FOLLOW_UP_QUESTIONS: int = 3
