@@ -1,1088 +1,281 @@
 {
-  "schema_version": 1,
-  "description": "Mapping mock: dental_case_code (CAVITY|IMPLANT|GINGIVITIS|SCALING|EMERGENCY) ↔ tín hiệu triệu chứng ↔ gợi ý câu hỏi thiếu. Dùng cho AI tiếp nhận: bóc tách → hỏi bổ sung → so khớp → BN xác nhận loại khám → get_mock_schedule.",
+  "schema_version": 2,
+  "description": "Ma trận triệu chứng → category khám nha khoa (CAT-01 đến CAT-05). 'o' = khớp, 'x' = không khớp. Dùng cho AI phân loại + heuristic fallback.",
   "categories": [
     {
-      "code": "CAVITY",
-      "label_vi": "Sâu răng / khắc phục sâu răng",
+      "code": "CAT-01",
+      "label_vi": "Trám răng / Phục hồi thẩm mỹ",
+      "description_vi": "Trám răng sâu (composite / amalgam), phục hồi men răng bị mẻ hoặc sứt, trám thẩm mỹ kẽ răng, thay miếng trám cũ, xử lý mòn cổ răng.",
+      "duration_minutes": 30,
       "symptom_signals": [
-        "lỗ sâu",
-        "sâu răng",
-        "trám",
-        "ê buốt",
-        "nhức khi ăn ngọt",
-        "chấm đen",
-        "đốm đen",
-        "mẻ men",
-        "mòn men",
-        "cổ răng",
-        "răng khôn sâu",
-        "sún",
-        "vệt xám",
-        "lủng",
-        "thủng",
-        "nhét thức ăn",
-        "rớt trám",
-        "bọc sứ",
-        "lấy tủy",
-        "răng cối",
-        "răng cấm"
+        "đốm trắng đục", "chấm đen", "ê buốt nhẹ", "lỗ sâu nhỏ", "giắt thức ăn kẽ răng",
+        "mẻ răng", "rớt trám", "trám cũ", "mòn cổ răng", "vệt đen rãnh răng",
+        "ố vàng", "kẽ răng thưa", "nứt men", "sứ bọc mẻ", "nghiến răng mòn"
       ],
       "typical_missing_slots_to_ask": [
-        "Vị trí răng (hàm trên/dưới, răng số mấy nếu biết)",
-        "Mức độ đau 1–10",
-        "Đau kích thích (nóng/lạnh/ngọt/chua) hay tự phát",
-        "Có đau về đêm / mất ngủ không",
-        "Có sưng nướu cục bộ hay mủ quanh chân răng không"
+        "Vị trí răng bị ảnh hưởng (hàm trên/dưới, trước/sau)?",
+        "Ê buốt khi ăn nóng/lạnh/ngọt hay tự phát?",
+        "Đã từng trám ở vị trí đó chưa?",
+        "Mức độ khó chịu 1–10?"
       ],
-      "boundary_notes_vi": "Đa số mô tả lỗ đen, ê buốt, nhức khi ăn, mẻ, trám hỏng → CAVITY. Chuyển EMERGENCY nếu kèm sốt, sưng má lan rộng, áp xe rõ, kháng thuốc giảm đau + đau cực độ, hoặc hướng dẫn cấp cứu trong cột hỏi thêm."
+      "boundary_notes_vi": "Nếu kèm đau dội về đêm, đau tự phát kéo dài, sưng mủ → xem xét CAT-02. Nếu răng vỡ nát/lung lay nặng → xem CAT-03."
     },
     {
-      "code": "IMPLANT",
-      "label_vi": "Trồng răng / implant",
+      "code": "CAT-02",
+      "label_vi": "Điều trị Tủy / Nội nha",
+      "description_vi": "Lấy tủy, chữa tủy răng bị viêm hoặc hoại tử, điều trị áp xe chân răng, chữa tủy lại (retreatment).",
+      "duration_minutes": 60,
       "symptom_signals": [
-        "implant",
-        "cấy ghép",
-        "trồng răng",
-        "mất răng lâu",
-        "cần thay răng"
+        "đau dội về đêm", "nhức mất ngủ", "nhức giật theo nhịp tim", "thuốc giảm đau không hết",
+        "đau khi ăn nóng", "buốt kéo dài >10 phút", "đau rêm liên tục", "cắn vào thốn",
+        "răng trồi cao", "sưng mủ chân răng", "mụn mủ lợi", "răng đổi màu xám/đen",
+        "lỗ sâu rất to", "nhức nửa đầu", "vỡ nửa thân răng", "sưng mủ sau đau dữ",
+        "chữa tủy rồi nhức lại", "đau không há miệng", "nóng ran má",
+        "chạm lưỡi đau điếng", "đau tự phát", "lỗ sâu lọt tăm", "thức ăn lọt lỗ sâu đau dữ",
+        "mẻ lộ tủy đỏ", "đau hàng giờ", "mùi hôi từ lỗ sâu", "gõ muỗng đau nhói",
+        "đau lan cổ vai", "uống nóng nhức dội", "mạch đập trong răng", "đau buốt không nhai được"
       ],
       "typical_missing_slots_to_ask": [
-        "Vị trí răng mất / cần phục hình",
-        "Đã mất răng được bao lâu",
-        "Có bệnh nền (tiểu đường, hút thuốc) cần ghi nhận không"
+        "Đau từ bao lâu rồi?",
+        "Đau tự phát hay chỉ khi ăn/uống?",
+        "Có sưng nướu hoặc sưng má không?",
+        "Đã uống thuốc giảm đau gì chưa, có bớt không?",
+        "Răng đó đã từng chữa tủy chưa?"
       ],
-      "boundary_notes_vi": "Chỉ khi BN nói rõ nhu cầu implant/trồng răng; không đoán từ đau sâu thông thường."
+      "boundary_notes_vi": "Đau dữ dội kèm sốt cao, sưng lan rộng, khó thở → cần cấp cứu y tế. Nếu chỉ ê buốt nhẹ thoáng qua → xem CAT-01."
     },
     {
-      "code": "GINGIVITIS",
-      "label_vi": "Viêm nướu / nha chu",
+      "code": "CAT-03",
+      "label_vi": "Nhổ răng / Tiểu phẫu",
+      "description_vi": "Nhổ răng khôn (đơn giản & phẫu thuật), nhổ răng sâu nát, nhổ chân răng tồn dư, tiểu phẫu cắt lợi trùm, cắt chóp chân răng.",
+      "duration_minutes": 45,
       "symptom_signals": [
-        "chảy máu chân răng",
-        "viêm nướu",
-        "nha chu",
-        "tụt lợi",
-        "lộ chân răng",
-        "hôi miệng kèm nướu"
+        "đau góc hàm trong cùng", "sưng húp mặt lệch", "răng khôn mọc kẹt",
+        "răng số 8 mọc ngầm", "há miệng khó", "sốt sưng răng khôn", "nổi hạch cổ",
+        "chân răng sát nướu", "răng vỡ cụt", "gãy ngang do tai nạn",
+        "răng lung lay nặng", "áp xe lớn lan rộng", "nhổ khôn cắn má",
+        "nhổ trước niềng", "giắt kẽ trong cùng sưng viêm", "lợi trùm răng khôn đau",
+        "cắt lợi trùm", "răng khôn đâm ngang ê răng 7", "răng nứt đôi",
+        "chân răng sót viêm", "chảy máu sau nhổ", "viêm ổ răng khô",
+        "nhổ răng sâu nát", "tê rần môi dưới nang khôn", "cắt chóp viêm",
+        "mủ quanh răng 8", "đau nhói khi nuốt", "răng khôn loét má",
+        "nhổ chân răng tàn tích", "lung lay nha chu nặng nhổ"
       ],
       "typical_missing_slots_to_ask": [
-        "Chảy máu khi đánh răng hay tự chảy",
-        "Nướu có sưng đỏ, có mủ không",
-        "Ê buốt lan nhiều răng hay một răng"
+        "Vị trí răng (hàm trên/dưới, trong cùng hay phía trước)?",
+        "Đã chụp X-quang răng khôn chưa?",
+        "Có đang uống thuốc chống đông hoặc bệnh nền gì không?",
+        "Sưng / sốt bao lâu rồi?"
       ],
-      "boundary_notes_vi": "Ưu tiên khi trọng tâm là nướu/tụt lợi/hội chứng nha chu; nếu chủ yếu là lỗ sâu đơn thuần → CAVITY."
+      "boundary_notes_vi": "Nếu chỉ sưng nhẹ lợi nhưng không phải răng khôn → xem CAT-02 (áp xe tủy). Nếu trẻ em nhổ răng sữa → CAT-04."
     },
     {
-      "code": "SCALING",
-      "label_vi": "Cạo vôi / vệ sinh răng miệng",
+      "code": "CAT-04",
+      "label_vi": "Nha khoa Trẻ em",
+      "description_vi": "Khám răng cho trẻ, trám răng sữa, nhổ răng sữa lung lay, bôi fluoride, trám bít hố rãnh phòng ngừa, điều trị tủy răng sữa, chấm thuốc đen giữ răng.",
+      "duration_minutes": 30,
       "symptom_signals": [
-        "cạo vôi",
-        "vệ sinh răng",
-        "khám định kỳ",
-        "cao răng",
-        "hôi nhẹ"
+        "bé đau răng", "răng sún đen", "bé 5 tuổi đau bỏ ăn", "răng sữa lung lay",
+        "răng vĩnh viễn mọc lẫy", "sâu răng cấm sữa", "nướu bé sưng mủ",
+        "bé không chịu đánh răng", "răng bé mòn cụt", "khám định kỳ bé 4 tuổi",
+        "trám phòng ngừa cho bé", "bé té gãy răng", "fluoride cho trẻ",
+        "thiếu mầm răng trẻ", "bé ngậm cơm sâu nhiều", "răng sữa vỡ chân đen",
+        "trẻ ê buốt ăn kem", "lấy cao răng trẻ 10", "bé mút tay hô",
+        "máng nhai bé nghiến", "nhổ răng sữa hết hạn", "tủy răng sữa",
+        "bé 7 tuổi sưng má sâu", "chấm thuốc đen giữ sữa", "khám chuẩn bị lớp 1",
+        "nhổ sữa mọc lẫy", "vệ sinh bé không hợp tác", "trám hố rãnh số 6",
+        "trẻ đau răng sốt nhẹ", "định hướng mọc vĩnh viễn"
       ],
       "typical_missing_slots_to_ask": [
-        "Lần khám / cạo vôi gần nhất",
-        "Có chảy máu nướu thường xuyên không"
+        "Bé bao nhiêu tuổi?",
+        "Răng sữa hay răng vĩnh viễn?",
+        "Bé có hợp tác khi khám răng không?",
+        "Triệu chứng kéo dài bao lâu rồi?"
       ],
-      "boundary_notes_vi": "Khi BN chỉ muốn vệ sinh/định kỳ, không có cơn đau cấp hay lỗ sâu rõ."
+      "boundary_notes_vi": "Chỉ áp dụng cho trẻ em (thường ≤12 tuổi). Nếu người lớn → phân vào CAT-01/02/03/05 tùy triệu chứng."
     },
     {
-      "code": "EMERGENCY",
-      "label_vi": "Đau cấp / sưng nướu / cần xử lý nhanh",
+      "code": "CAT-05",
+      "label_vi": "Khám Tổng quát & X-Quang",
+      "description_vi": "Khám định kỳ tổng quát, lấy cao răng / đánh bóng, chụp X-quang toàn cảnh, tư vấn niềng răng / implant / sứ thẩm mỹ, kiểm tra nha chu, cấp giấy khám sức khỏe răng miệng.",
+      "duration_minutes": 20,
       "symptom_signals": [
-        "sốt",
-        "sưng má",
-        "áp xe",
-        "mủ",
-        "đau dữ dội",
-        "sưng mặt",
-        "không đỡ thuốc",
-        "cấp cứu"
+        "đau răng chung chung", "khám định kỳ", "niềng răng sâu",
+        "có bầu đau răng", "chảy máu đánh răng", "hôi miệng", "cạo vôi",
+        "ê rần không rõ chỗ", "mỏi hàm ngủ dậy", "chụp X-quang", "ê buốt hai hàm",
+        "niềng bung dây cung", "bà bầu nôn ê buốt", "mùi hôi kẽ răng",
+        "nướu sưng đỏ không đau", "lấy cao đánh bóng", "mảng bám thuốc lá",
+        "lợi tụt lộ chân răng", "giấy khám sức khỏe", "tư vấn sứ thẩm mỹ",
+        "răng mọc lộn xộn", "đau rêm xương hàm mặt", "khám lại lâu ngày",
+        "lỏng lẻo các răng", "tư vấn implant", "nướu nhợt bở chảy máu",
+        "kiểm tra sứ 5 năm", "phác đồ viêm nha chu", "mảng bám cứng mặt trong",
+        "đánh giá trước mang thai"
       ],
       "typical_missing_slots_to_ask": [
-        "Có sốt / rét run / mệt không",
-        "Sưng lan nhanh không, có nuốt/khó thở không (nếu có → hướng dẫn đến cơ sở y tế ngay)",
-        "Mức độ đau hiện tại 1–10"
+        "Lần khám nha khoa gần nhất là khi nào?",
+        "Có triệu chứng cụ thể nào hay chỉ khám tổng quát?",
+        "Có đang điều trị nha khoa nào dở dang không (niềng, implant…)?",
+        "Có bệnh nền hoặc đang mang thai không?"
       ],
-      "boundary_notes_vi": "Nghi ngờ nhiễm trùng lan rộng, biến chứng cấp, hoặc đau cực độ + dấu hiệu toàn thân → EMERGENCY để xếp khung sớm hơn."
+      "boundary_notes_vi": "Category mặc định khi chưa xác định rõ. Nếu mô tả cụ thể đau dữ dội / sưng mủ / trẻ em → chuyển sang CAT-02/03/04."
     }
   ],
-  "examples": [
-    {
-      "id": "ex001",
-      "user_message": "Răng hàm trên của tôi có một chấm đen nhỏ, không đau.",
-      "extracted_symptoms": [
-        "Răng hàm trên",
-        "Chấm đen",
-        "Không đau"
-      ],
-      "missing_slots_questions": "Có hay bị nhét thức ăn không? Ê buốt khi uống lạnh không?",
-      "suggested_case_code": "CAVITY"
-    },
-    {
-      "id": "ex002",
-      "user_message": "Tôi ăn kẹo sô cô la là cái răng hàm dưới nó nhức.",
-      "extracted_symptoms": [
-        "Nhức",
-        "Răng hàm dưới",
-        "Đau khi ăn ngọt"
-      ],
-      "missing_slots_questions": "Nhức bao lâu thì hết? Đau tự nhiên về đêm không?",
-      "suggested_case_code": "CAVITY"
-    },
-    {
-      "id": "ex003",
-      "user_message": "Răng số 6 của tôi bị thủng 1 lỗ to, ăn thịt hay bị nhét vào.",
-      "extracted_symptoms": [
-        "Răng số 6",
-        "Lỗ to",
-        "Nhét thức ăn"
-      ],
-      "missing_slots_questions": "Lấy tăm xỉa ra có hết nhức không?",
-      "suggested_case_code": "CAVITY"
-    },
-    {
-      "id": "ex004",
-      "user_message": "Đang uống nước đá tự nhiên buốt tận óc ở cái răng cối.",
-      "extracted_symptoms": [
-        "Buốt dữ dội",
-        "Răng cối",
-        "Kích thích lạnh"
-      ],
-      "missing_slots_questions": "Tình trạng này bị mấy ngày rồi?",
-      "suggested_case_code": "CAVITY"
-    },
-    {
-      "id": "ex005",
-      "user_message": "Cái răng hàm sâu cũ tự nhiên hôm nay nhức nhối ghê.",
-      "extracted_symptoms": [
-        "Răng sâu cũ",
-        "Nhức tự phát"
-      ],
-      "missing_slots_questions": "Nhức liên tục hay từng cơn? Mức độ từ 1-10?",
-      "suggested_case_code": "CAVITY"
-    },
-    {
-      "id": "ex006",
-      "user_message": "Tối qua nằm xuống là nhức răng không ngủ được.",
-      "extracted_symptoms": [
-        "Đau về đêm (khi nằm)",
-        "Nhức mất ngủ"
-      ],
-      "missing_slots_questions": "Đau ở răng hàm hay răng cửa? Đau lan lên đầu không?",
-      "suggested_case_code": "CAVITY"
-    },
-    {
-      "id": "ex007",
-      "user_message": "Tôi trám răng sâu được 1 năm giờ cắn đồ cứng nó thốn.",
-      "extracted_symptoms": [
-        "Răng đã trám",
-        "Thốn khi cắn"
-      ],
-      "missing_slots_questions": "Miếng trám còn nguyên không? Không cắn có thốn không?",
-      "suggested_case_code": "CAVITY"
-    },
-    {
-      "id": "ex008",
-      "user_message": "Răng bị sâu vỡ mủn ra một nửa rồi, giờ không thấy đau.",
-      "extracted_symptoms": [
-        "Răng vỡ mủn",
-        "Không đau"
-      ],
-      "missing_slots_questions": "Nướu xung quanh có sưng hay nổi cục mủ không?",
-      "suggested_case_code": "CAVITY"
-    },
-    {
-      "id": "ex009",
-      "user_message": "Nhức răng quá, tôi uống thuốc giảm đau mà vẫn không đỡ.",
-      "extracted_symptoms": [
-        "Nhức dữ dội",
-        "Thuốc không tác dụng"
-      ],
-      "missing_slots_questions": "Đau ở vị trí nào? Đau dội theo nhịp mạch đập không?",
-      "suggested_case_code": "EMERGENCY"
-    },
-    {
-      "id": "ex010",
-      "user_message": "Cắn miếng sườn là cái răng sâu nó buốt điếng người.",
-      "extracted_symptoms": [
-        "Buốt dữ dội",
-        "Có răng sâu",
-        "Kích thích nhai"
-      ],
-      "missing_slots_questions": "Ngoài lúc ăn ra thì có tự đau nhức không?",
-      "suggested_case_code": "CAVITY"
-    },
-    {
-      "id": "ex011",
-      "user_message": "Chải răng trúng cái lỗ sâu là nó rêm rêm.",
-      "extracted_symptoms": [
-        "Lỗ sâu",
-        "Rêm (đau nhẹ)",
-        "Kích thích chải răng"
-      ],
-      "missing_slots_questions": "Có chảy máu khi chải không? Lỗ sâu to cỡ nào?",
-      "suggested_case_code": "CAVITY"
-    },
-    {
-      "id": "ex012",
-      "user_message": "Đau nhức một vùng hàm trái, không biết đau răng nào.",
-      "extracted_symptoms": [
-        "Nhức hàm trái",
-        "Không rõ vị trí"
-      ],
-      "missing_slots_questions": "Đau lan lên tai/đầu không? Há miệng có khó khăn không?",
-      "suggested_case_code": "CAVITY"
-    },
-    {
-      "id": "ex013",
-      "user_message": "Bác sĩ ơi, răng tôi đen thui ở cổ răng sát lợi, chải răng hay ê.",
-      "extracted_symptoms": [
-        "Đen cổ răng",
-        "Ê khi chải"
-      ],
-      "missing_slots_questions": "Có lỗ hổng chỗ đen đó không? Có hay uống nước có ga không?",
-      "suggested_case_code": "CAVITY"
-    },
-    {
-      "id": "ex014",
-      "user_message": "Nhai kẹo cao su bị dính vào lỗ sâu, kéo ra đau chảy nước mắt.",
-      "extracted_symptoms": [
-        "Lỗ sâu",
-        "Đau nhói",
-        "Kích thích dính"
-      ],
-      "missing_slots_questions": "Lấy kẹo ra xong bao lâu thì hết đau?",
-      "suggested_case_code": "CAVITY"
-    },
-    {
-      "id": "ex015",
-      "user_message": "Cái lỗ sâu nó hôi rình, đánh răng kỹ vẫn có mùi.",
-      "extracted_symptoms": [
-        "Lỗ sâu",
-        "Hôi miệng"
-      ],
-      "missing_slots_questions": "Răng đó từng bị đau nhức dữ dội trước đây chưa?",
-      "suggested_case_code": "CAVITY"
-    },
-    {
-      "id": "ex016",
-      "user_message": "Đau giật giật từng cơn ở cái răng trong cùng hàm dưới.",
-      "extracted_symptoms": [
-        "Đau giật từng cơn",
-        "Răng trong cùng dưới"
-      ],
-      "missing_slots_questions": "Đau kéo dài bao lâu mỗi cơn? Nướu có sưng đỏ không?",
-      "suggested_case_code": "CAVITY"
-    },
-    {
-      "id": "ex017",
-      "user_message": "Răng sâu để lâu ngày giờ tụt lợi lộ cả chân răng.",
-      "extracted_symptoms": [
-        "Răng sâu lâu ngày",
-        "Tụt lợi"
-      ],
-      "missing_slots_questions": "Chân răng lộ ra có bị ê buốt hay nhức nhối không?",
-      "suggested_case_code": "GINGIVITIS"
-    },
-    {
-      "id": "ex018",
-      "user_message": "Răng hàm trên bên phải nhai cơm cũng thấy ê.",
-      "extracted_symptoms": [
-        "Răng hàm trên phải",
-        "Ê khi nhai mềm"
-      ],
-      "missing_slots_questions": "Nhìn bằng mắt thường có thấy lỗ đen hay mẻ vỡ không?",
-      "suggested_case_code": "CAVITY"
-    },
-    {
-      "id": "ex019",
-      "user_message": "Con tôi 5 tuổi bị sâu sún hết răng cửa trước, bé hay kêu đau.",
-      "extracted_symptoms": [
-        "Răng sún",
-        "Trẻ 5 tuổi",
-        "Răng cửa",
-        "Đau"
-      ],
-      "missing_slots_questions": "Bé kêu đau khi ăn hay tự nhiên khóc đêm?",
-      "suggested_case_code": "CAVITY"
-    },
-    {
-      "id": "ex020",
-      "user_message": "Tôi thấy có vệt xám xám dưới men răng hàm, cạy không ra.",
-      "extracted_symptoms": [
-        "Vệt xám dưới men",
-        "Răng hàm",
-        "Không bong"
-      ],
-      "missing_slots_questions": "Có cảm giác ê buốt vùng đó khi uống đồ nóng/lạnh không?",
-      "suggested_case_code": "CAVITY"
-    },
-    {
-      "id": "ex021",
-      "user_message": "Bị buốt răng cửa khi hít sương lạnh buổi sáng.",
-      "extracted_symptoms": [
-        "Buốt răng cửa",
-        "Kích thích không khí lạnh"
-      ],
-      "missing_slots_questions": "Răng cửa có kẽ hở hay lỗ đen nhỏ nào không?",
-      "suggested_case_code": "CAVITY"
-    },
-    {
-      "id": "ex022",
-      "user_message": "Cái răng cấm bị sâu giờ cắn nhẹ hai hàm vào nhau cũng thốn.",
-      "extracted_symptoms": [
-        "Răng cấm sâu",
-        "Thốn khi chạm khớp"
-      ],
-      "missing_slots_questions": "Có cảm giác răng đó trồi cao hơn các răng khác không?",
-      "suggested_case_code": "CAVITY"
-    },
-    {
-      "id": "ex023",
-      "user_message": "Đau buốt cả hàm trên bên trái, cứ uống nước là buốt.",
-      "extracted_symptoms": [
-        "Buốt cả hàm trên trái",
-        "Kích thích nước"
-      ],
-      "missing_slots_questions": "Nước nhiệt độ bình thường cũng buốt hay chỉ nước lạnh?",
-      "suggested_case_code": "CAVITY"
-    },
-    {
-      "id": "ex024",
-      "user_message": "Răng sâu của tôi rớt miếng trám ra được 1 tháng rồi, nay bắt đầu đau.",
-      "extracted_symptoms": [
-        "Rớt miếng trám 1 tháng",
-        "Bắt đầu đau"
-      ],
-      "missing_slots_questions": "Đau âm ỉ hay nhức dữ dội? Đau về ban đêm không?",
-      "suggested_case_code": "CAVITY"
-    },
-    {
-      "id": "ex025",
-      "user_message": "Lỗ sâu nhét thịt lợn vào, xỉa răng ra máu xong nhức nguyên đêm.",
-      "extracted_symptoms": [
-        "Lỗ sâu",
-        "Nhét thịt",
-        "Chảy máu",
-        "Nhức đêm"
-      ],
-      "missing_slots_questions": "Sáng nay còn nhức không? Nướu chỗ đó có sưng mủ không?",
-      "suggested_case_code": "CAVITY"
-    },
-    {
-      "id": "ex026",
-      "user_message": "Cứ nhai đồ dai là răng hàm dưới bên trái lại rêm rêm.",
-      "extracted_symptoms": [
-        "Răng hàm dưới trái",
-        "Rêm khi nhai đồ dai"
-      ],
-      "missing_slots_questions": "Mức độ rêm từ 1-10 là bao nhiêu? Rêm bao lâu thì hết?",
-      "suggested_case_code": "CAVITY"
-    },
-    {
-      "id": "ex027",
-      "user_message": "Răng có lỗ thủng nhỏ, dạo này uống nước chanh là ê buốt.",
-      "extracted_symptoms": [
-        "Lỗ thủng nhỏ",
-        "Ê buốt khi uống chua"
-      ],
-      "missing_slots_questions": "Ê buốt kéo dài mấy phút hay hết ngay sau khi nuốt?",
-      "suggested_case_code": "CAVITY"
-    },
-    {
-      "id": "ex028",
-      "user_message": "Bà bầu bị sâu răng khôn nhức quá có nhổ được không bác sĩ?",
-      "extracted_symptoms": [
-        "Phụ nữ có thai",
-        "Sâu răng khôn",
-        "Nhức"
-      ],
-      "missing_slots_questions": "Chị đang mang thai tháng thứ mấy? Há miệng bình thường chứ?",
-      "suggested_case_code": "CAVITY"
-    },
-    {
-      "id": "ex029",
-      "user_message": "Răng cửa có đốm trắng đục, lấy móng tay cào vào thấy buốt.",
-      "extracted_symptoms": [
-        "Đốm trắng đục",
-        "Răng cửa",
-        "Buốt khi chạm"
-      ],
-      "missing_slots_questions": "Có uống nước đá bị buốt không? Có chảy máu nướu quanh đó không?",
-      "suggested_case_code": "CAVITY"
-    },
-    {
-      "id": "ex030",
-      "user_message": "Đau răng kèm theo sốt hầm hập từ tối qua.",
-      "extracted_symptoms": [
-        "Đau răng",
-        "Sốt"
-      ],
-      "missing_slots_questions": "Đau ở vị trí nào? Có sưng lệch một bên mặt không?",
-      "suggested_case_code": "EMERGENCY"
-    },
-    {
-      "id": "ex031",
-      "user_message": "Tự nhiên nay ê răng quá, không ăn được gì đồ lạnh luôn.",
-      "extracted_symptoms": [
-        "Ê răng tự phát",
-        "Không chịu được lạnh"
-      ],
-      "missing_slots_questions": "Ê ở một răng cụ thể hay cả hàm? Có thấy lỗ sâu nào không?",
-      "suggested_case_code": "CAVITY"
-    },
-    {
-      "id": "ex032",
-      "user_message": "Răng hàm tôi bị lủng một lỗ to tướng mà lấy tăm chọc vô không thấy cảm giác.",
-      "extracted_symptoms": [
-        "Răng hàm",
-        "Lỗ to",
-        "Mất cảm giác"
-      ],
-      "missing_slots_questions": "Răng này trước đây có từng sưng đau dữ dội chưa?",
-      "suggested_case_code": "CAVITY"
-    },
-    {
-      "id": "ex033",
-      "user_message": "Đau răng ghê gớm, cảm giác như có con gì cắn bên trong tuỷ.",
-      "extracted_symptoms": [
-        "Đau dữ dội",
-        "Cảm giác đau trong tủy"
-      ],
-      "missing_slots_questions": "Đau giật từng cơn hay liên tục? Đêm qua ngủ được không?",
-      "suggested_case_code": "CAVITY"
-    },
-    {
-      "id": "ex034",
-      "user_message": "Nhai trúng cục sạn, cái răng sâu nó nứt làm đôi rồi, giờ đau lắm.",
-      "extracted_symptoms": [
-        "Răng sâu bị nứt",
-        "Đau nhức (do nhai sạn)"
-      ],
-      "missing_slots_questions": "Nứt tách đôi hẳn ra chưa? Răng có lung lay không?",
-      "suggested_case_code": "CAVITY"
-    },
-    {
-      "id": "ex035",
-      "user_message": "Uống nước nóng vô là cái răng cấm nó nhức lên tận óc, ngậm nước đá thì đỡ.",
-      "extracted_symptoms": [
-        "Răng cấm",
-        "Nhức khi nóng",
-        "Giảm khi lạnh"
-      ],
-      "missing_slots_questions": "Chắc chắn là ngậm nước lạnh thấy dịu đi đúng không? (Dấu hiệu tủy hoại tử)",
-      "suggested_case_code": "CAVITY"
-    },
-    {
-      "id": "ex036",
-      "user_message": "Cái lỗ sâu nó đọng đồ ăn hôi quá, có cách nào bít lại không?",
-      "extracted_symptoms": [
-        "Lỗ sâu",
-        "Nhét đồ ăn",
-        "Hôi"
-      ],
-      "missing_slots_questions": "Răng đó có đang bị nhức buốt gì không hay chỉ hôi thôi?",
-      "suggested_case_code": "CAVITY"
-    },
-    {
-      "id": "ex037",
-      "user_message": "Tối ngủ nhức răng quá phải dậy ngậm nước muối ấm mới dịu dịu được xíu.",
-      "extracted_symptoms": [
-        "Đau về đêm",
-        "Giảm đau bằng nước muối ấm"
-      ],
-      "missing_slots_questions": "Ngậm xong ngủ tiếp được không hay lại đau lại? Đau răng hàm hay cửa?",
-      "suggested_case_code": "CAVITY"
-    },
-    {
-      "id": "ex038",
-      "user_message": "Răng cửa bị mẻ một góc do sâu, giờ cười gió thổi vào là ê.",
-      "extracted_symptoms": [
-        "Răng cửa sâu mẻ",
-        "Ê khi gặp gió"
-      ],
-      "missing_slots_questions": "Mức độ ê có làm bạn khó chịu nhiều không?",
-      "suggested_case_code": "CAVITY"
-    },
-    {
-      "id": "ex039",
-      "user_message": "Răng tôi sâu đen hết cả kẽ, dùng chỉ nha khoa là rát và chảy máu.",
-      "extracted_symptoms": [
-        "Sâu đen kẽ răng",
-        "Rát",
-        "Chảy máu"
-      ],
-      "missing_slots_questions": "Ăn đồ ngọt có bị buốt vào kẽ đó không?",
-      "suggested_case_code": "CAVITY"
-    },
-    {
-      "id": "ex040",
-      "user_message": "Đau nhức vùng răng trong cùng, há miệng lớn là thốn.",
-      "extracted_symptoms": [
-        "Nhức vùng trong cùng",
-        "Thốn khi há to"
-      ],
-      "missing_slots_questions": "Bạn thấy nhức nướu trùm lên hay nhức từ trong thân răng?",
-      "suggested_case_code": "CAVITY"
-    },
-    {
-      "id": "ex041",
-      "user_message": "Răng lấy tuỷ rồi mà sao nay gõ nhẹ vào vẫn thấy đau rêm rêm?",
-      "extracted_symptoms": [
-        "Răng đã lấy tủy",
-        "Gõ vào đau rêm"
-      ],
-      "missing_slots_questions": "Mới lấy tủy gần đây hay lâu rồi? Nướu quanh chân răng có sưng đỏ không?",
-      "suggested_case_code": "CAVITY"
-    },
-    {
-      "id": "ex042",
-      "user_message": "Sáng dậy thấy răng hàm sưng vù, đụng vào lỗ sâu đau điếng.",
-      "extracted_symptoms": [
-        "Sưng răng hàm",
-        "Lỗ sâu",
-        "Đau chạm"
-      ],
-      "missing_slots_questions": "Có sốt hay nổi hạch ở cổ không? Mặt có sưng lệch không?",
-      "suggested_case_code": "EMERGENCY"
-    },
-    {
-      "id": "ex043",
-      "user_message": "Răng tôi bị mòn men, cứ ăn sầu riêng ngọt là nó ê kinh khủng.",
-      "extracted_symptoms": [
-        "Mòn men",
-        "Ê do ăn ngọt"
-      ],
-      "missing_slots_questions": "Có nhìn thấy chấm đen sâu nào trên bề mặt bị mòn không?",
-      "suggested_case_code": "CAVITY"
-    },
-    {
-      "id": "ex044",
-      "user_message": "Cái răng sâu cắm tăm vào thấy nhói một cái rồi hết liền.",
-      "extracted_symptoms": [
-        "Răng sâu",
-        "Nhói khi chạm",
-        "Hết nhanh"
-      ],
-      "missing_slots_questions": "Nếu không chạm tăm vào thì ăn uống có bị ê buốt không?",
-      "suggested_case_code": "CAVITY"
-    },
-    {
-      "id": "ex045",
-      "user_message": "Có cái mụn mủ ngay chân răng sâu cũ, bóp ra mủ trắng hôi hôi.",
-      "extracted_symptoms": [
-        "Mụn mủ",
-        "Chân răng sâu cũ",
-        "Hôi"
-      ],
-      "missing_slots_questions": "Răng đó hiện tại có đau nhức không hay chỉ có mủ?",
-      "suggested_case_code": "EMERGENCY"
-    },
-    {
-      "id": "ex046",
-      "user_message": "Tôi bị đau răng khôn bị sâu thủng lổ to, nhức lan sang răng bên cạnh.",
-      "extracted_symptoms": [
-        "Răng khôn sâu lổ to",
-        "Nhức lan răng bên"
-      ],
-      "missing_slots_questions": "Nhức liên tục hay thỉnh thoảng nhói lên?",
-      "suggested_case_code": "CAVITY"
-    },
-    {
-      "id": "ex047",
-      "user_message": "Đau răng hàm dưới bên phải, uống Panadol đỏ không xi nhê.",
-      "extracted_symptoms": [
-        "Đau răng hàm dưới phải",
-        "Kháng thuốc"
-      ],
-      "missing_slots_questions": "Đau về đêm không? Mức độ đau từ 1-10?",
-      "suggested_case_code": "EMERGENCY"
-    },
-    {
-      "id": "ex048",
-      "user_message": "Đang nhai cơm tự nhiên rớt ra cục đen đen, giờ cái răng hàm lủng lổ.",
-      "extracted_symptoms": [
-        "Rớt miếng đen (sâu/trám)",
-        "Răng hàm lủng lỗ"
-      ],
-      "missing_slots_questions": "Có thấy ê buốt hay nhức không?",
-      "suggested_case_code": "CAVITY"
-    },
-    {
-      "id": "ex049",
-      "user_message": "Răng sứ bị ê buốt khi ăn kem, có phải bên trong bị sâu lại không bác sĩ?",
-      "extracted_symptoms": [
-        "Bọc sứ",
-        "Ê buốt khi lạnh"
-      ],
-      "missing_slots_questions": "Bọc sứ được bao lâu rồi? Lợi quanh răng sứ có viêm đỏ không?",
-      "suggested_case_code": "CAVITY"
-    },
-    {
-      "id": "ex050",
-      "user_message": "Răng tôi sâu lỗ to đùng, bữa nay ăn nhai đụng trúng cái rễ thần kinh nhức nảy người.",
-      "extracted_symptoms": [
-        "Lỗ to",
-        "Nhức dữ dội khi chạm"
-      ],
-      "missing_slots_questions": "(Chạm tủy). Nhức nảy người xong bao lâu thì hết? Tối có đau không?",
-      "suggested_case_code": "CAVITY"
-    },
-    {
-      "id": "ex051",
-      "user_message": "Con em bị sún hết răng hàm trên, đêm qua cháu khóc ré lên ôm má.",
-      "extracted_symptoms": [
-        "Sún răng trên",
-        "Trẻ em khóc đêm"
-      ],
-      "missing_slots_questions": "Má bé có bị sưng không? Bé có đang bị sốt không?",
-      "suggested_case_code": "CAVITY"
-    },
-    {
-      "id": "ex052",
-      "user_message": "Răng sâu kẽ, cứ ăn thịt bò là giắt chặt vào, lấy chỉ nha khoa kéo ra máu me be bét.",
-      "extracted_symptoms": [
-        "Sâu kẽ",
-        "Giắt thức ăn dai",
-        "Chảy máu nhiều"
-      ],
-      "missing_slots_questions": "Ngoài lúc giắt thịt ra thì bình thường có tự đau nhức không?",
-      "suggested_case_code": "CAVITY"
-    },
-    {
-      "id": "ex053",
-      "user_message": "Ê buốt hết cả hàm răng trên, không biết do kem đánh răng hay do sâu.",
-      "extracted_symptoms": [
-        "Ê buốt hàm trên",
-        "Không rõ nguyên nhân"
-      ],
-      "missing_slots_questions": "Ê khi đánh răng hay ê cả ngày? Có đổi loại kem đánh răng mới không?",
-      "suggested_case_code": "CAVITY"
-    },
-    {
-      "id": "ex054",
-      "user_message": "Răng tôi đen thui, bể gần hết rồi, giờ chỉ còn cái chân răng ngang nướu.",
-      "extracted_symptoms": [
-        "Răng đen bể",
-        "Còn chân răng"
-      ],
-      "missing_slots_questions": "Vùng nướu chỗ chân răng đó có sưng mủ hay nhức dội lên không?",
-      "suggested_case_code": "CAVITY"
-    },
-    {
-      "id": "ex055",
-      "user_message": "Cái răng khôn sâu nhức quá, làm sao cho nó hết nhức để tối nay đi tiệc?",
-      "extracted_symptoms": [
-        "Răng khôn sâu nhức",
-        "Cần giảm đau gấp"
-      ],
-      "missing_slots_questions": "Bị nhức mấy ngày rồi? Há miệng có đau không?",
-      "suggested_case_code": "CAVITY"
-    },
-    {
-      "id": "ex056",
-      "user_message": "Đau răng râm ran, không rõ cái nào, chỉ thấy nửa bên mặt trái khó chịu.",
-      "extracted_symptoms": [
-        "Đau râm ran",
-        "Không rõ vị trí mặt trái"
-      ],
-      "missing_slots_questions": "Đau dội lên khi bạn ăn đồ nóng/lạnh/ngọt đúng không?",
-      "suggested_case_code": "CAVITY"
-    },
-    {
-      "id": "ex057",
-      "user_message": "Cắn quả táo tự nhiên cái răng cửa mẻ 1 miếng, bên trong thấy ngà vàng vàng.",
-      "extracted_symptoms": [
-        "Mẻ răng cửa",
-        "Thấy ngà vàng"
-      ],
-      "missing_slots_questions": "Có bị ê buốt khi hít gió hay uống nước không?",
-      "suggested_case_code": "CAVITY"
-    },
-    {
-      "id": "ex058",
-      "user_message": "Răng cấm bị thủng lỗ, tôi lấy bông gòn tẩm dầu tràm nhét vô mà vẫn nhức.",
-      "extracted_symptoms": [
-        "Lỗ thủng răng cấm",
-        "Nhét dầu tràm vẫn nhức"
-      ],
-      "missing_slots_questions": "Bạn nhét vào có thấy nhức tăng lên không? Đau về đêm không?",
-      "suggested_case_code": "CAVITY"
-    },
-    {
-      "id": "ex059",
-      "user_message": "Răng sâu được bác sĩ trám tạm hôm qua, hôm nay về nhà nhức chịu không nổi.",
-      "extracted_symptoms": [
-        "Trám tạm",
-        "Nhức dữ dội"
-      ],
-      "missing_slots_questions": "Nhức liên tục dội theo nhịp đập phải không? Có sưng nướu không?",
-      "suggested_case_code": "EMERGENCY"
-    },
-    {
-      "id": "ex060",
-      "user_message": "Hồi nhỏ bị sâu răng số 6 không nhổ, giờ nó đen và cụt lủn, thỉnh thoảng sưng nướu.",
-      "extracted_symptoms": [
-        "Răng 6 sâu cụt",
-        "Thỉnh thoảng sưng nướu"
-      ],
-      "missing_slots_questions": "Hiện tại ngay lúc này nướu có đang sưng và hành sốt không?",
-      "suggested_case_code": "CAVITY"
-    },
-    {
-      "id": "ex061",
-      "user_message": "Đang đi xe máy gió thổi vô miệng là mấy cái răng cửa ê ẩm cả lên.",
-      "extracted_symptoms": [
-        "Ê ẩm răng cửa",
-        "Kích thích gió lạnh"
-      ],
-      "missing_slots_questions": "Có thấy vết nứt hay lỗ sâu nào ở kẽ răng cửa không?",
-      "suggested_case_code": "CAVITY"
-    },
-    {
-      "id": "ex062",
-      "user_message": "Cái lỗ sâu nó bọng bên trong, ăn hạt macca cắn vô sụp nguyên cái men răng.",
-      "extracted_symptoms": [
-        "Bọng sâu bên trong",
-        "Sụp men răng do cắn cứng"
-      ],
-      "missing_slots_questions": "Chỗ sụp men đó có làm bạn bị đau nhức tới tủy không?",
-      "suggested_case_code": "CAVITY"
-    },
-    {
-      "id": "ex063",
-      "user_message": "Răng nhức kinh khủng, cảm giác như răng nó dài ra, cắn hai hàm không khít được.",
-      "extracted_symptoms": [
-        "Nhức kinh khủng",
-        "Cảm giác răng trồi cao"
-      ],
-      "missing_slots_questions": "(Dấu hiệu viêm quanh chóp). Gõ nhẹ vào răng đó có thốn lên tận óc không?",
-      "suggested_case_code": "EMERGENCY"
-    },
-    {
-      "id": "ex064",
-      "user_message": "Thủng lỗ răng hàm, tôi nhét thuốc lào vô cho bớt nhức mà giờ sưng vù cả má.",
-      "extracted_symptoms": [
-        "Lỗ hàm",
-        "Nhét dị vật",
-        "Sưng má"
-      ],
-      "missing_slots_questions": "Có hành sốt không? Mủ có chảy ra không? Cấp cứu ngay nhé.",
-      "suggested_case_code": "EMERGENCY"
-    },
-    {
-      "id": "ex065",
-      "user_message": "Tự nhiên ăn kẹo dẻo nó dính lôi luôn cái cục trám cũ ra, lòi cái lỗ sâu đen.",
-      "extracted_symptoms": [
-        "Rớt cục trám do kẹo",
-        "Lòi lỗ đen"
-      ],
-      "missing_slots_questions": "Bạn có thấy ê buốt hay nhức khi ăn uống không?",
-      "suggested_case_code": "CAVITY"
-    },
-    {
-      "id": "ex066",
-      "user_message": "Răng số 7 hàm dưới nhức nhối cả tuần nay, tôi mua kháng sinh uống 3 ngày chả ăn thua.",
-      "extracted_symptoms": [
-        "Nhức răng số 7",
-        "Cả tuần",
-        "Uống kháng sinh không đỡ"
-      ],
-      "missing_slots_questions": "Nhức về đêm hay ban ngày? Có đau lan lên tai không?",
-      "suggested_case_code": "EMERGENCY"
-    },
-    {
-      "id": "ex067",
-      "user_message": "Bác sĩ coi giúp, răng tôi bị đốm đen ngay mặt nhai, không ê không buốt gì sất.",
-      "extracted_symptoms": [
-        "Đốm đen mặt nhai",
-        "Không ê buốt"
-      ],
-      "missing_slots_questions": "Lấy tăm khều vào đốm đen đó có bị mắc tăm lại không?",
-      "suggested_case_code": "CAVITY"
-    },
-    {
-      "id": "ex068",
-      "user_message": "Sáng đánh răng lỡ tay quẹt bàn chải mạnh trúng cái lỗ sâu, thốn trào nước mắt.",
-      "extracted_symptoms": [
-        "Lỗ sâu",
-        "Thốn trào nước mắt do chạm"
-      ],
-      "missing_slots_questions": "Sau cơn thốn đó thì hiện tại còn rêm rêm nhức không?",
-      "suggested_case_code": "CAVITY"
-    },
-    {
-      "id": "ex069",
-      "user_message": "Răng khôn hàm dưới sâu mẻ một góc, thịt dư đâm vào trong cái lổ đó nhức quá.",
-      "extracted_symptoms": [
-        "Răng khôn sâu mẻ",
-        "Nướu (thịt dư) chui vào lỗ"
-      ],
-      "missing_slots_questions": "(Polyp tủy/Nướu). Há miệng có bị sưng cộm, khó nhai không?",
-      "suggested_case_code": "CAVITY"
-    },
-    {
-      "id": "ex070",
-      "user_message": "Ê răng quá, cắn đồ chua là rớt nước mắt, uống nước ấm cũng ê.",
-      "extracted_symptoms": [
-        "Ê răng nặng",
-        "Kích thích chua và ấm"
-      ],
-      "missing_slots_questions": "Răng bị ê là răng nào? Có thấy mòn ở cổ răng sát lợi không?",
-      "suggested_case_code": "CAVITY"
-    },
-    {
-      "id": "ex071",
-      "user_message": "Cái răng cửa bị đốm vàng, dạo này tự nhiên nhức ngầm ngầm bên trong xương hàm.",
-      "extracted_symptoms": [
-        "Răng cửa đốm vàng",
-        "Nhức ngầm xương hàm"
-      ],
-      "missing_slots_questions": "Răng đó từng bị va đập hay chấn thương (té ngã) bao giờ chưa?",
-      "suggested_case_code": "CAVITY"
-    },
-    {
-      "id": "ex072",
-      "user_message": "Nhức lôi từ răng số 6 lên màng tang, chườm đá bên ngoài má thấy đỡ đau hẳn.",
-      "extracted_symptoms": [
-        "Nhức răng 6 lan lên màng tang",
-        "Giảm khi chườm lạnh"
-      ],
-      "missing_slots_questions": "Đau dữ dội dội từng cơn về đêm đúng không?",
-      "suggested_case_code": "CAVITY"
-    },
-    {
-      "id": "ex073",
-      "user_message": "Răng sâu lấy tủy 5 năm trước, bọc sứ rồi, nay ăn đồ dai nó vỡ làm đôi luôn cục sứ và cùi răng.",
-      "extracted_symptoms": [
-        "Răng đã lấy tủy bọc sứ",
-        "Vỡ đôi cùi và sứ"
-      ],
-      "missing_slots_questions": "Vỡ dọc hay vỡ ngang? Có nhức chân răng bên dưới không?",
-      "suggested_case_code": "CAVITY"
-    },
-    {
-      "id": "ex074",
-      "user_message": "Mẹ tôi 60 tuổi, còn cái chân răng sâu, nay nó sưng to làm bà méo cả miệng.",
-      "extracted_symptoms": [
-        "Người lớn tuổi",
-        "Chân răng sâu",
-        "Sưng méo miệng"
-      ],
-      "missing_slots_questions": "Bà có đang sốt hay mệt mỏi trong người không? (Nguy cơ viêm mô tế bào)",
-      "suggested_case_code": "EMERGENCY"
-    },
-    {
-      "id": "ex075",
-      "user_message": "Răng hàm bị sâu, tôi hay ngậm tỏi cho đỡ nhức, nay lợi nó rộp trắng lên rát quá.",
-      "extracted_symptoms": [
-        "Răng hàm sâu",
-        "Lợi rộp trắng (bỏng tỏi)"
-      ],
-      "missing_slots_questions": "Bỏ tỏi ra thì răng có còn nhức dội lên não không?",
-      "suggested_case_code": "CAVITY"
-    },
-    {
-      "id": "ex076",
-      "user_message": "Cảm giác hai hàm cắn vào nhau bị cộm ở cái răng đang trám dở, nhức âm ỉ cả đêm.",
-      "extracted_symptoms": [
-        "Cộm răng trám dở",
-        "Nhức âm ỉ đêm"
-      ],
-      "missing_slots_questions": "Bạn vừa đi trám tạm lấy tủy đúng không? Nhức có chịu nổi không?",
-      "suggested_case_code": "CAVITY"
-    },
-    {
-      "id": "ex077",
-      "user_message": "Răng tôi chả sâu lỗ nào, chỉ có mấy đường nứt màu nâu trên mặt răng, cắn đá buốt cực kỳ.",
-      "extracted_symptoms": [
-        "Nứt răng mặt nhai màu nâu",
-        "Buốt khi cắn"
-      ],
-      "missing_slots_questions": "Có bao giờ đang nhai mà nhói đau như điện giật buông đũa luôn không?",
-      "suggested_case_code": "CAVITY"
-    },
-    {
-      "id": "ex078",
-      "user_message": "Bị nhức răng mà đang cho con bú, không dám uống thuốc, có cách nào giảm đau tại nhà không?",
-      "extracted_symptoms": [
-        "Nhức răng",
-        "Đang cho con bú",
-        "Cần mẹo giảm đau"
-      ],
-      "missing_slots_questions": "Nhức răng nào? Nhức lỗ sâu hay nhức nướu để bác sĩ tư vấn?",
-      "suggested_case_code": "CAVITY"
-    },
-    {
-      "id": "ex079",
-      "user_message": "Răng khôn mọc thẳng nhưng bị sâu ở cái kẽ tiếp giáp răng số 7, thức ăn giắt vào thúi òm.",
-      "extracted_symptoms": [
-        "Sâu kẽ 7-8",
-        "Giắt thức ăn",
-        "Hôi"
-      ],
-      "missing_slots_questions": "Răng số 7 phía trước có bị ê buốt hay nhức không?",
-      "suggested_case_code": "CAVITY"
-    },
-    {
-      "id": "ex080",
-      "user_message": "Răng cối sâu thành cái bọng to, lưỡi liếm vào thấy sắc nhọn hay cứa rách lưỡi.",
-      "extracted_symptoms": [
-        "Bọng sâu to",
-        "Cạnh sắc nhọn rách lưỡi"
-      ],
-      "missing_slots_questions": "Răng đó ăn nhai có bị nhức hay buốt gì không?",
-      "suggested_case_code": "CAVITY"
-    },
-    {
-      "id": "ex081",
-      "user_message": "Đang bị viêm xoang, tự nhiên mấy cái răng hàm trên nó ê rêm rêm cả loạt.",
-      "extracted_symptoms": [
-        "Đang viêm xoang",
-        "Ê rêm hàm trên"
-      ],
-      "missing_slots_questions": "Gõ nhẹ vào các răng hàm trên có thấy thốn không?",
-      "suggested_case_code": "CAVITY"
-    },
-    {
-      "id": "ex082",
-      "user_message": "Cái răng sâu tôi đi đặt thuốc diệt tủy 3 ngày trước, nay nó nhức bung cái đầu.",
-      "extracted_symptoms": [
-        "Đặt thuốc diệt tủy 3 ngày",
-        "Nhức bung đầu"
-      ],
-      "missing_slots_questions": "Mức độ nhức có kèm theo sưng lợi quanh răng không?",
-      "suggested_case_code": "EMERGENCY"
-    },
-    {
-      "id": "ex083",
-      "user_message": "Răng cửa có kẽ hở đen, cười mỉm là thấy, tui muốn trám lại mai đi đám cưới.",
-      "extracted_symptoms": [
-        "Kẽ hở đen răng cửa",
-        "Nhu cầu trám thẩm mỹ"
-      ],
-      "missing_slots_questions": "Kẽ hở đó có làm bạn bị ê buốt khi uống lạnh không?",
-      "suggested_case_code": "CAVITY"
-    },
-    {
-      "id": "ex084",
-      "user_message": "Nhức răng số 5 hàm trên, bóp hai má vào nhau thấy đỡ nhức hơn xíu.",
-      "extracted_symptoms": [
-        "Nhức răng 5 hàm trên",
-        "Giảm khi bóp má"
-      ],
-      "missing_slots_questions": "Đau thành cơn dội lên hay đau râm ran liên tục?",
-      "suggested_case_code": "CAVITY"
-    },
-    {
-      "id": "ex085",
-      "user_message": "Cái răng trong cùng hàm dưới nó mục ra từng mảnh nhỏ lúc tui đánh răng.",
-      "extracted_symptoms": [
-        "Răng mục từng mảnh lúc chải",
-        "Trong cùng dưới"
-      ],
-      "missing_slots_questions": "Chỗ mục đó có làm bạn đau nhức hay ê buốt không?",
-      "suggested_case_code": "CAVITY"
-    },
-    {
-      "id": "ex086",
-      "user_message": "Đang mang bầu tháng thứ 8, răng hàm sâu lổ to nhức nguyên đêm khóc sưng cả mắt.",
-      "extracted_symptoms": [
-        "Bầu 8 tháng",
-        "Răng hàm lổ to",
-        "Nhức đêm khóc"
-      ],
-      "missing_slots_questions": "Chị nhức vậy có bị hành sốt không? Cấp cứu nha khoa để rửa lỗ sâu nhé.",
-      "suggested_case_code": "EMERGENCY"
-    },
-    {
-      "id": "ex087",
-      "user_message": "Răng bị sâu, bác sĩ cũ bảo tủy chết rồi không cần chữa, nay nó sưng cái mụn mủ bự chà bá.",
-      "extracted_symptoms": [
-        "Tủy chết",
-        "Không chữa",
-        "Nay sưng mụn mủ bự"
-      ],
-      "missing_slots_questions": "Bóp mụn mủ có chảy ra nước vàng hôi không? Có sốt không?",
-      "suggested_case_code": "EMERGENCY"
-    },
-    {
-      "id": "ex088",
-      "user_message": "Uống trà đá là răng cấm dưới nó nhức tê tái khoảng 5 phút mới hết.",
-      "extracted_symptoms": [
-        "Nhức tê tái do trà đá",
-        "Kéo dài 5 phút"
-      ],
-      "missing_slots_questions": "Nhìn mặt răng cấm có thấy lỗ thủng đen nào không?",
-      "suggested_case_code": "CAVITY"
-    },
-    {
-      "id": "ex089",
-      "user_message": "Nhổ răng khôn xong phát hiện răng kế bên bị sâu lủng 1 lỗ ở mặt hông, rêm rêm.",
-      "extracted_symptoms": [
-        "Nhổ răng khôn xong",
-        "Phát hiện sâu răng kế",
-        "Rêm"
-      ],
-      "missing_slots_questions": "Lỗ thủng đó có làm bạn bị buốt khi ăn uống không?",
-      "suggested_case_code": "CAVITY"
-    },
-    {
-      "id": "ex090",
-      "user_message": "Răng cửa tự nhiên đổi màu xám ngoét, không đau nhức gì, chỉ thấy ghê.",
-      "extracted_symptoms": [
-        "Răng cửa đổi màu xám",
-        "Không đau"
-      ],
-      "missing_slots_questions": "Trước đây răng này có bị té đập trúng hay trám gì chưa?",
-      "suggested_case_code": "CAVITY"
-    },
-    {
-      "id": "ex091",
-      "user_message": "Tôi muốn đặt lịch cạo vôi và khám định kỳ 6 tháng, răng không đau gì.",
-      "extracted_symptoms": [
-        "Cạo vôi",
-        "Khám định kỳ",
-        "Không đau"
-      ],
-      "missing_slots_questions": "Lần cạo vôi gần nhất là khi nào? Có hay chảy máu nướu khi đánh răng không?",
-      "suggested_case_code": "SCALING"
-    },
-    {
-      "id": "ex092",
-      "user_message": "Cháu bị cao răng nhiều ở cổ răng, hơi hôi miệng, không đau.",
-      "extracted_symptoms": [
-        "Cao răng",
-        "Hôi miệng nhẹ",
-        "Không đau"
-      ],
-      "missing_slots_questions": "Có chảy máu khi đánh răng hay xỉa răng không? Bạn có hút thuốc không?",
-      "suggested_case_code": "CAVITY"
-    },
-    {
-      "id": "ex093",
-      "user_message": "Tôi cần tư vấn trồng răng implant hàm dưới bên trái, răng mất được 2 năm rồi.",
-      "extracted_symptoms": [
-        "Mất răng lâu",
-        "Nhu cầu implant",
-        "Hàm dưới trái"
-      ],
-      "missing_slots_questions": "Có bệnh tiểu đường hoặc đang uống thuốc loãng máu không? Xương hàm có bị teo nhiều không (đã chụp phim)?",
-      "suggested_case_code": "IMPLANT"
-    },
-    {
-      "id": "ex094",
-      "user_message": "Nướu hay sưng đỏ, chảy máu mỗi khi đánh răng, không có lỗ sâu đau.",
-      "extracted_symptoms": [
-        "Viêm nướu",
-        "Chảy máu khi đánh răng",
-        "Không lỗ sâu"
-      ],
-      "missing_slots_questions": "Chảy máu từ bao lâu? Có hôi miệng hay răng lung lay không?",
-      "suggested_case_code": "GINGIVITIS"
-    }
+  "symptom_matrix": [
+    {"text": "Răng có đốm trắng đục trên bề mặt", "category": "CAT-01"},
+    {"text": "Mặt nhai răng hàm có chấm đen nhỏ", "category": "CAT-01"},
+    {"text": "Ăn kẹo thấy hơi ê buốt", "category": "CAT-01"},
+    {"text": "Uống nước đá bị buốt nhẹ rồi hết ngay", "category": "CAT-01"},
+    {"text": "Lỗ sâu nhỏ màu nâu trên mặt răng", "category": "CAT-01"},
+    {"text": "Kẽ răng bị giắt thịt khi ăn", "category": "CAT-01"},
+    {"text": "Xỉa răng hay bị tưa sợi chỉ nha khoa", "category": "CAT-01"},
+    {"text": "Răng bị sứt một mẻ nhỏ do cắn đồ cứng", "category": "CAT-01"},
+    {"text": "Rớt miếng trám cũ ra ngoài", "category": "CAT-01"},
+    {"text": "Cảm giác cộm khi nhai ở chỗ trám cũ", "category": "CAT-01"},
+    {"text": "Răng cửa bị mẻ góc", "category": "CAT-01"},
+    {"text": "Mặt ngoài của răng bị lõm sát nướu (mòn cổ răng)", "category": "CAT-01"},
+    {"text": "Ê buốt khi chải răng trúng vùng sát nướu", "category": "CAT-01"},
+    {"text": "Thấy một vệt đen chạy dọc rãnh răng", "category": "CAT-01"},
+    {"text": "Răng ố vàng, có đốm nâu đen muốn làm trắng", "category": "CAT-01"},
+    {"text": "Kẽ răng cửa bị thưa muốn trám lại", "category": "CAT-01"},
+    {"text": "Bề mặt răng lởm chởm, không láng mịn", "category": "CAT-01"},
+    {"text": "Đau nhẹ khi cắn đồ chua (chanh, xoài)", "category": "CAT-01"},
+    {"text": "Khe hở giữa hai răng ngày càng rộng, hay kẹt thức ăn", "category": "CAT-01"},
+    {"text": "Răng có đốm xám mờ nhưng không đau", "category": "CAT-01"},
+    {"text": "Mẻ men răng do cạy nắp chai", "category": "CAT-01"},
+    {"text": "Lỗ sâu trên răng đang to dần ra nhưng chưa nhức", "category": "CAT-01"},
+    {"text": "Lưỡi liếm qua thấy răng có gờ sắc cạnh", "category": "CAT-01"},
+    {"text": "Trám lại kẽ hở giữa các răng", "category": "CAT-01"},
+    {"text": "Sứ bọc răng bị mẻ một miếng nhỏ", "category": "CAT-01"},
+    {"text": "Răng bị nứt dọc nhẹ trên bề mặt men", "category": "CAT-01"},
+    {"text": "Đau nhói 1-2 giây rồi hết khi hít gió lạnh", "category": "CAT-01"},
+    {"text": "Muốn phục hình lại hình dáng răng bị mòn", "category": "CAT-01"},
+    {"text": "Răng mòn vẹt do tật nghiến răng", "category": "CAT-01"},
+    {"text": "Đen ở viền miếng trám cũ", "category": "CAT-01"},
+    {"text": "Thấy lỗ hổng ở răng nhưng không có cảm giác gì", "category": "CAT-01"},
+
+    {"text": "Đau dội lên từng cơn về đêm", "category": "CAT-02"},
+    {"text": "Đau nhức mất ngủ cả đêm", "category": "CAT-02"},
+    {"text": "Nhức giật giật theo nhịp tim", "category": "CAT-02"},
+    {"text": "Uống thuốc giảm đau nhưng không hề thuyên giảm", "category": "CAT-02"},
+    {"text": "Đau dội lên tận óc khi ăn đồ nóng", "category": "CAT-02"},
+    {"text": "Nhức buốt kéo dài hơn 10 phút sau khi uống nước lạnh", "category": "CAT-02"},
+    {"text": "Đau rêm rêm liên tục không dứt", "category": "CAT-02"},
+    {"text": "Cắn hai hàm vào nhau thấy thốn tới óc", "category": "CAT-02"},
+    {"text": "Cảm giác răng trồi cao hơn bình thường", "category": "CAT-02"},
+    {"text": "Nướu dưới chân răng sưng to thành cục mủ", "category": "CAT-02"},
+    {"text": "Bóp mụn mủ ở lợi thấy chảy nước vàng hôi", "category": "CAT-02"},
+    {"text": "Răng tự nhiên đổi màu xám sậm hoặc đen thui", "category": "CAT-02"},
+    {"text": "Lỗ sâu rất to, đụng lưỡi vào thấy buốt", "category": "CAT-02"},
+    {"text": "Nhức lan lên tận nửa đầu bên bị sâu", "category": "CAT-02"},
+    {"text": "Sâu răng lớn vỡ một nửa thân răng", "category": "CAT-02"},
+    {"text": "Từng bị đau dữ dội cách đây vài tháng giờ hết đau nhưng sưng mủ", "category": "CAT-02"},
+    {"text": "Răng chữa tủy rồi nhưng nay lại nhức lại", "category": "CAT-02"},
+    {"text": "Nhức răng bưng bưng làm không há miệng lớn được", "category": "CAT-02"},
+    {"text": "Đau răng kèm theo cảm giác nóng ran ở má", "category": "CAT-02"},
+    {"text": "Chỉ cần chạm nhẹ lưỡi vào răng cũng thấy đau điếng", "category": "CAT-02"},
+    {"text": "Đau tự phát không làm gì cũng đau", "category": "CAT-02"},
+    {"text": "Có lỗ sâu to đút lọt cả đầu tăm vào trong", "category": "CAT-02"},
+    {"text": "Thức ăn lọt vào lỗ sâu gây đau buốt dữ dội", "category": "CAT-02"},
+    {"text": "Răng mẻ lớn lộ cả phần tủy đỏ đỏ bên trong", "category": "CAT-02"},
+    {"text": "Cơn đau kéo dài hàng giờ liền", "category": "CAT-02"},
+    {"text": "Lỗ sâu có mùi hôi cực kỳ khó chịu", "category": "CAT-02"},
+    {"text": "Gõ nhẹ bằng muỗng vào răng thấy đau nhói", "category": "CAT-02"},
+    {"text": "Đau lan xuống tận cổ và vai", "category": "CAT-02"},
+    {"text": "Uống nước nóng vào là nhức dội lên ngay lập tức", "category": "CAT-02"},
+    {"text": "Cảm giác trong răng có mạch đập thình thịch", "category": "CAT-02"},
+    {"text": "Đau buốt không thể nhai ở một bên hàm", "category": "CAT-02"},
+
+    {"text": "Đau nhức vùng góc hàm trong cùng", "category": "CAT-03"},
+    {"text": "Sưng húp mặt lệch một bên", "category": "CAT-03"},
+    {"text": "Răng khôn mọc kẹt đâm vào má", "category": "CAT-03"},
+    {"text": "Răng số 8 mọc ngầm làm sưng lợi", "category": "CAT-03"},
+    {"text": "Há miệng khó khăn do sưng góc hàm", "category": "CAT-03"},
+    {"text": "Hành sốt do sưng răng khôn", "category": "CAT-03"},
+    {"text": "Nổi hạch ở cổ do đau răng khôn", "category": "CAT-03"},
+    {"text": "Chỉ còn mẩu chân răng sát nướu", "category": "CAT-03"},
+    {"text": "Răng vỡ cụt hết thân không còn gì để nhai", "category": "CAT-03"},
+    {"text": "Răng bị gãy gập ngang chân do tai nạn", "category": "CAT-03"},
+    {"text": "Răng lung lay mức độ nặng (sắp rụng)", "category": "CAT-03"},
+    {"text": "Áp xe lớn lan rộng quanh mặt", "category": "CAT-03"},
+    {"text": "Muốn nhổ răng khôn do hay bị cắn vào má", "category": "CAT-03"},
+    {"text": "Cần nhổ răng số 8 trước khi niềng", "category": "CAT-03"},
+    {"text": "Thức ăn giắt sâu ở kẽ răng trong cùng gây sưng viêm", "category": "CAT-03"},
+    {"text": "Lợi trùm lên răng khôn gây đau nhức", "category": "CAT-03"},
+    {"text": "Cắt lợi trùm răng khôn", "category": "CAT-03"},
+    {"text": "Răng khôn mọc đâm ngang làm ê răng số 7", "category": "CAT-03"},
+    {"text": "Răng nứt đôi tách làm 2 mảnh", "category": "CAT-03"},
+    {"text": "Chân răng còn sót lại sau khi nhổ bị viêm", "category": "CAT-03"},
+    {"text": "Vùng nhổ răng cũ bị chảy máu không ngừng", "category": "CAT-03"},
+    {"text": "Cục máu đông ở chỗ nhổ răng bị rơi ra gây đau buốt (viêm ổ răng khô)", "category": "CAT-03"},
+    {"text": "Muốn nhổ bỏ răng sâu nát không thể giữ lại", "category": "CAT-03"},
+    {"text": "Tê rần môi dưới do nang răng khôn chèn ép", "category": "CAT-03"},
+    {"text": "Tiểu phẫu cắt chóp răng viêm", "category": "CAT-03"},
+    {"text": "Sưng viêm nướu quanh răng số 8 có dịch mủ chảy ra", "category": "CAT-03"},
+    {"text": "Đau nhói khi nuốt nước bọt do sưng vùng răng hàm", "category": "CAT-03"},
+    {"text": "Răng khôn mọc lệch ra ngoài má cọ xát gây loét", "category": "CAT-03"},
+    {"text": "Yêu cầu nhổ chân răng tàn tích lâu năm", "category": "CAT-03"},
+    {"text": "Răng lung lay do nha chu nặng cần nhổ bỏ", "category": "CAT-03"},
+
+    {"text": "Bé bị đau răng khóc thét giữa đêm", "category": "CAT-04"},
+    {"text": "Răng cửa bé bị sún đen hết cả hàm", "category": "CAT-04"},
+    {"text": "Bé 5 tuổi kêu đau răng bỏ ăn", "category": "CAT-04"},
+    {"text": "Răng sữa của bé lung lay mà chưa rụng", "category": "CAT-04"},
+    {"text": "Răng vĩnh viễn mọc lẫy bên trong răng sữa", "category": "CAT-04"},
+    {"text": "Bé bị sâu lủng lỗ to ở răng cấm sữa", "category": "CAT-04"},
+    {"text": "Nướu của bé bị sưng mủ đỏ chót", "category": "CAT-04"},
+    {"text": "Bé không chịu đánh răng vì kêu đau", "category": "CAT-04"},
+    {"text": "Răng bé bị mòn cụt ngủn sát nướu", "category": "CAT-04"},
+    {"text": "Cần khám kiểm tra răng định kỳ cho bé 4 tuổi", "category": "CAT-04"},
+    {"text": "Trám răng phòng ngừa sâu răng cho bé", "category": "CAT-04"},
+    {"text": "Bé bị té gãy răng cửa mầm non", "category": "CAT-04"},
+    {"text": "Bôi Fluoride ngừa sâu răng cho trẻ", "category": "CAT-04"},
+    {"text": "Khám tình trạng thiếu mầm răng ở trẻ", "category": "CAT-04"},
+    {"text": "Bé hay ngậm cơm làm sâu nhiều răng", "category": "CAT-04"},
+    {"text": "Răng sữa bị vỡ chỉ còn chân răng đen thui", "category": "CAT-04"},
+    {"text": "Trẻ kêu ê buốt khi ăn kem", "category": "CAT-04"},
+    {"text": "Lấy cao răng cho trẻ em 10 tuổi", "category": "CAT-04"},
+    {"text": "Bé có tật mút tay làm hô răng", "category": "CAT-04"},
+    {"text": "Làm máng nhai bảo vệ cho bé hay nghiến răng", "category": "CAT-04"},
+    {"text": "Nhổ răng sữa hết hạn cho bé", "category": "CAT-04"},
+    {"text": "Điều trị tủy răng sữa cho bé", "category": "CAT-04"},
+    {"text": "Bé 7 tuổi bị sưng một bên má do răng sâu", "category": "CAT-04"},
+    {"text": "Chấm thuốc đen giữ răng sữa cho bé", "category": "CAT-04"},
+    {"text": "Khám răng tổng quát cho trẻ chuẩn bị vào lớp 1", "category": "CAT-04"},
+    {"text": "Nhổ răng sữa mọc lẫy không đau cho trẻ", "category": "CAT-04"},
+    {"text": "Vệ sinh răng miệng cho bé không chịu hợp tác", "category": "CAT-04"},
+    {"text": "Trám bít hố rãnh răng cấm số 6 mới mọc của trẻ", "category": "CAT-04"},
+    {"text": "Trẻ đau răng kèm theo sốt nhẹ", "category": "CAT-04"},
+    {"text": "Khám định hướng mọc răng vĩnh viễn cho bé", "category": "CAT-04"},
+
+    {"text": "Tôi bị đau răng (Nói chung chung)", "category": "CAT-05"},
+    {"text": "Muốn khám định kỳ tổng quát", "category": "CAT-05"},
+    {"text": "Tôi đang niềng răng mà bị sâu răng", "category": "CAT-05"},
+    {"text": "Tôi đang có bầu 5 tháng mà bị đau răng", "category": "CAT-05"},
+    {"text": "Lợi dạo này hay bị chảy máu khi đánh răng", "category": "CAT-05"},
+    {"text": "Hơi thở có mùi hôi khó chịu dù đánh răng kỹ", "category": "CAT-05"},
+    {"text": "Muốn cạo vôi răng", "category": "CAT-05"},
+    {"text": "Răng tôi hay bị ê rần rần không rõ ở đâu", "category": "CAT-05"},
+    {"text": "Cảm giác mỏi hàm khi ngủ dậy", "category": "CAT-05"},
+    {"text": "Cần chụp X-quang kiểm tra toàn bộ răng", "category": "CAT-05"},
+    {"text": "Răng tự nhiên ê buốt cả hai hàm", "category": "CAT-05"},
+    {"text": "Đang niềng răng mắc cài bị bung rớt dây cung nhét thức ăn", "category": "CAT-05"},
+    {"text": "Bà bầu hay bị nôn nghén làm răng ê buốt", "category": "CAT-05"},
+    {"text": "Tôi thấy có mùi hôi rỉ ra từ kẽ răng", "category": "CAT-05"},
+    {"text": "Nướu hay bị sưng đỏ phì đại nhưng không đau", "category": "CAT-05"},
+    {"text": "Muốn lấy cao răng và đánh bóng", "category": "CAT-05"},
+    {"text": "Làm sạch mảng bám ố vàng do hút thuốc lá", "category": "CAT-05"},
+    {"text": "Lợi bị tụt lộ cả chân răng dài ra", "category": "CAT-05"},
+    {"text": "Tôi cần giấy khám sức khỏe răng miệng", "category": "CAT-05"},
+    {"text": "Xin tư vấn làm răng sứ thẩm mỹ", "category": "CAT-05"},
+    {"text": "Hàm dưới có vài cái răng mọc lộn xộn", "category": "CAT-05"},
+    {"text": "Đau rêm rêm vùng xương hàm mặt", "category": "CAT-05"},
+    {"text": "Tôi cần khám lại sau thời gian dài không đi nha khoa", "category": "CAT-05"},
+    {"text": "Có cảm giác lỏng lẻo ở các răng", "category": "CAT-05"},
+    {"text": "Tư vấn trồng răng Implant cho vị trí mất răng", "category": "CAT-05"},
+    {"text": "Nướu bị nhợt nhạt, bở và dễ chảy máu", "category": "CAT-05"},
+    {"text": "Kiểm tra lại toàn bộ răng đã làm sứ cách đây 5 năm", "category": "CAT-05"},
+    {"text": "Xin phác đồ điều trị viêm nha chu", "category": "CAT-05"},
+    {"text": "Có mảng bám cứng cạy không ra ở mặt trong răng dưới", "category": "CAT-05"},
+    {"text": "Đánh giá tình trạng răng trước khi mang thai", "category": "CAT-05"}
   ]
 }

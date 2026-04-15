@@ -1,206 +1,74 @@
 {
   "meta": {
     "ngon_ngu": "vi-VN",
-    "phien_ban": "1.0",
-    "mo_ta": "Danh mục phòng khám nha khoa mock: khám được / không khám được, dấu hiệu, thời lượng, khung lịch trong ngày & tuần."
+    "phien_ban": "2.0",
+    "mo_ta": "Danh mục phòng khám nha khoa mock: 5 category khám (CAT-01→CAT-05), thời lượng, khung giờ, lịch tuần."
   },
   "lich_tuan_chuan": {
-    "mo_ta": "Ngày làm việc: Thứ 2 đến Thứ 6 (nghỉ Thứ 7 & Chủ nhật) — khớp mock backend.",
+    "mo_ta": "Ngày làm việc: Thứ 2 đến Thứ 6 (nghỉ Thứ 7 & Chủ nhật).",
     "python_weekday_duoc_phep": [0, 1, 2, 3, 4],
-    "giai_thich_python_weekday": {
-      "0": "Thứ 2",
-      "1": "Thứ 3",
-      "2": "Thứ 4",
-      "3": "Thứ 5",
-      "4": "Thứ 6",
-      "5": "Thứ 7 (nghỉ)",
-      "6": "Chủ nhật (nghỉ)"
-    },
     "cac_thu_theo_ten_de_doc": ["Thứ 2", "Thứ 3", "Thứ 4", "Thứ 5", "Thứ 6"]
   },
-  "danh_muc_kham_va_chua_duoc": [
+  "danh_muc_kham": [
     {
-      "ma": "CAVITY",
-      "ten": "Sâu răng / khắc phục sâu răng",
-      "tom_tat": "Trám, xử lý lỗ sâu, ê buốt tại chỗ răng.",
-      "thoi_luong_kham_phut": 15,
+      "ma": "CAT-01",
+      "ten": "Trám răng / Phục hồi thẩm mỹ",
+      "tom_tat": "Trám răng sâu, phục hồi men mẻ/sứt, trám thẩm mỹ kẽ răng, thay trám cũ, mòn cổ răng.",
+      "thoi_luong_kham_phut": 30,
       "khung_gio_trong_ngay": {
-        "gio_bat_dau_cho_phep": "08:00",
-        "gio_ket_thuc_ca_muon_nhat": "08:30",
-        "buoc_luoi_phut": 15,
-        "ghi_chu": "Ca ngắn, thường xếp đầu ca."
+        "sang": {"bat_dau": "08:00", "ket_thuc": "12:00"},
+        "chieu": {"bat_dau": "13:30", "ket_thuc": "17:00"},
+        "buoc_luoi_phut": 30
       },
-      "lich_trong_tuan": {
-        "cac_thu_lam_viec": [0, 1, 2, 3, 4],
-        "gio_mo_cua_phong_kham": "08:00",
-        "gio_dong_cua_phong_kham": "17:00"
-      },
-      "dau_hieu_benh_di_kem": [
-        "Đau nhói khi ăn ngọt/lạnh",
-        "Lỗ đen trên mặt răng",
-        "Thức ăn bị kẹt trong lỗ sâu",
-        "Ê buốt khi đánh răng tại một răng",
-        "Hơi thở có mùi kèm đau răng cục bộ"
-      ],
-      "tu_khoa_goi_y": ["sâu răng", "trám", "lỗ sâu", "khoằm", "ê buốt một răng"]
+      "tu_khoa_goi_y": ["sâu răng", "trám", "lỗ sâu", "ê buốt nhẹ", "mẻ răng", "rớt trám", "mòn cổ răng", "trám thẩm mỹ"]
     },
     {
-      "ma": "IMPLANT",
-      "ten": "Trồng răng / implant",
-      "tom_tat": "Tư vấn và điều trị phục hình cố định bằng implant (mock).",
+      "ma": "CAT-02",
+      "ten": "Điều trị Tủy / Nội nha",
+      "tom_tat": "Lấy tủy, chữa tủy viêm/hoại tử, áp xe chân răng, chữa tủy lại.",
       "thoi_luong_kham_phut": 60,
       "khung_gio_trong_ngay": {
-        "gio_bat_dau_cho_phep": "08:00",
-        "gio_ket_thuc_ca_muon_nhat": "09:00",
-        "buoc_luoi_phut": 15,
-        "ghi_chu": "Ca dài, bác sĩ chuyên trách — ít slot."
+        "sang": {"bat_dau": "08:00", "ket_thuc": "11:00"},
+        "chieu": {"bat_dau": "13:30", "ket_thuc": "16:00"},
+        "buoc_luoi_phut": 60
       },
-      "lich_trong_tuan": {
-        "cac_thu_lam_viec": [0, 1, 2, 3],
-        "gio_mo_cua_phong_kham": "08:00",
-        "gio_dong_cua_phong_kham": "17:00",
-        "ghi_chu": "Mock: chỉ Thứ 2–Thứ 5 (python weekday 0–3); không xếp implant Thứ 6 (python weekday 4)."
-      },
-      "dau_hieu_benh_di_kem": [
-        "Mất răng lâu cần thay thế cố định",
-        "Răng giả tháo lắp bất tiện, muốn implant",
-        "Xương hàm teo sau mất răng (cần đánh giá)",
-        "Răng lung lay nặng sắp mất, tư vấn phương án"
-      ],
-      "tu_khoa_goi_y": ["implant", "trồng răng", "cấy ghép", "mất răng", "phục hình cố định"]
+      "tu_khoa_goi_y": ["đau dội", "nhức đêm", "thuốc không hết đau", "sưng mủ chân răng", "tủy", "lỗ sâu to", "đau tự phát"]
     },
     {
-      "ma": "GINGIVITIS",
-      "ten": "Viêm nướu / nha chu",
-      "tom_tat": "Chảy máu nướu, viêm quanh răng, hơi thở, nha chu nhẹ–trung bình.",
+      "ma": "CAT-03",
+      "ten": "Nhổ răng / Tiểu phẫu",
+      "tom_tat": "Nhổ răng khôn, nhổ răng nát, nhổ chân răng, cắt lợi trùm, cắt chóp.",
+      "thoi_luong_kham_phut": 45,
+      "khung_gio_trong_ngay": {
+        "sang": {"bat_dau": "08:00", "ket_thuc": "11:30"},
+        "chieu": {"bat_dau": "13:30", "ket_thuc": "15:30"},
+        "buoc_luoi_phut": 45
+      },
+      "tu_khoa_goi_y": ["răng khôn", "nhổ răng", "sưng mặt", "số 8", "tiểu phẫu", "cắt lợi trùm", "gãy răng", "lung lay nặng"]
+    },
+    {
+      "ma": "CAT-04",
+      "ten": "Nha khoa Trẻ em",
+      "tom_tat": "Khám trẻ, trám sữa, nhổ sữa, fluoride, trám hố rãnh, tủy sữa.",
       "thoi_luong_kham_phut": 30,
       "khung_gio_trong_ngay": {
-        "gio_bat_dau_cho_phep": "09:30",
-        "gio_ket_thuc_ca_muon_nhat": "12:00",
-        "buoc_luoi_phut": 15
+        "sang": {"bat_dau": "08:00", "ket_thuc": "11:30"},
+        "chieu": {"bat_dau": "14:00", "ket_thuc": "16:30"},
+        "buoc_luoi_phut": 30
       },
-      "lich_trong_tuan": {
-        "cac_thu_lam_viec": [0, 1, 2, 3, 4],
-        "gio_mo_cua_phong_kham": "08:00",
-        "gio_dong_cua_phong_kham": "17:00"
-      },
-      "dau_hieu_benh_di_kem": [
-        "Chảy máu chân răng khi đánh răng",
-        "Nướu sưng đỏ, đau nhẹ",
-        "Hơi thở có mùi kéo dài",
-        "Răng lung lay nhẹ",
-        "Cảm giác răng dài ra (nướu tụt)"
-      ],
-      "tu_khoa_goi_y": ["nướu", "chảy máu", "viêm nướu", "nha chu", "hôi miệng"]
+      "tu_khoa_goi_y": ["bé", "trẻ", "răng sữa", "con tôi", "cháu", "fluoride", "mọc lẫy", "sún"]
     },
     {
-      "ma": "SCALING",
-      "ten": "Cạo vôi / vệ sinh răng miệng",
-      "tom_tat": "Lấy cao răng, đánh bóng, khám định kỳ không đau cấp.",
-      "thoi_luong_kham_phut": 15,
+      "ma": "CAT-05",
+      "ten": "Khám Tổng quát & X-Quang",
+      "tom_tat": "Khám định kỳ, lấy cao răng, X-quang, tư vấn niềng/implant/sứ, giấy khám SK.",
+      "thoi_luong_kham_phut": 20,
       "khung_gio_trong_ngay": {
-        "gio_bat_dau_cho_phep": "13:30",
-        "gio_ket_thuc_ca_muon_nhat": "16:30",
-        "buoc_luoi_phut": 15
+        "sang": {"bat_dau": "08:00", "ket_thuc": "12:00"},
+        "chieu": {"bat_dau": "13:30", "ket_thuc": "17:00"},
+        "buoc_luoi_phut": 20
       },
-      "lich_trong_tuan": {
-        "cac_thu_lam_viec": [0, 1, 2, 3, 4],
-        "gio_mo_cua_phong_kham": "08:00",
-        "gio_dong_cua_phong_kham": "17:00"
-      },
-      "dau_hieu_benh_di_kem": [
-        "Cao răng nhiều, ố vàng",
-        "Lâu ngày chưa cạo vôi",
-        "Hơi thở nhẹ, không đau cấp",
-        "Khám định kỳ 6 tháng"
-      ],
-      "tu_khoa_goi_y": ["cạo vôi", "vệ sinh", "lấy vôi", "định kỳ", "sạch răng"]
-    },
-    {
-      "ma": "EMERGENCY",
-      "ten": "Đau cấp / sưng / xử lý nhanh",
-      "tom_tat": "Ưu tiên trong ca sáng: đau dữ dội, sưng, áp xe, chấn thương cấp.",
-      "thoi_luong_kham_phut": 30,
-      "khung_gio_trong_ngay": {
-        "gio_bat_dau_cho_phep": "10:00",
-        "gio_ket_thuc_ca_muon_nhat": "12:30",
-        "buoc_luoi_phut": 15
-      },
-      "lich_trong_tuan": {
-        "cac_thu_lam_viec": [0, 1, 2, 3, 4],
-        "gio_mo_cua_phong_kham": "08:00",
-        "gio_dong_cua_phong_kham": "17:00",
-        "uu_tien": "Trong khung 10:00–12:30 có thể giữ slot dự phòng cấp cứu nha khoa (mock)."
-      },
-      "dau_hieu_benh_di_kem": [
-        "Đau răng dữ dội, không chịu được",
-        "Sưng má, sưng nướu lan rộng",
-        "Sốt nhẹ kèm đau răng",
-        "Chấn thương gãy/vỡ răng vừa xảy ra",
-        "Áp xe, mủ quanh chân răng"
-      ],
-      "tu_khoa_goi_y": ["đau quá", "sưng", "áp xe", "cấp cứu", "gãy răng", "va đập"]
-    },
-    {
-      "ma": "GENERAL",
-      "ten": "Khám tổng quát / chưa rõ danh mục",
-      "tom_tat": "BN mô tả mơ hồ, cần khám lần đầu để phân loại sau tại phòng.",
-      "thoi_luong_kham_phut": 30,
-      "khung_gio_trong_ngay": {
-        "gio_bat_dau_cho_phep": "08:00",
-        "gio_ket_thuc_ca_muon_nhat": "11:30",
-        "buoc_luoi_phut": 15,
-        "ghi_chu": "Danh mục chung — khung rộng hơn ca chuyên sâu (mock)."
-      },
-      "lich_trong_tuan": {
-        "cac_thu_lam_viec": [0, 1, 2, 3, 4],
-        "gio_mo_cua_phong_kham": "08:00",
-        "gio_dong_cua_phong_kham": "17:00"
-      },
-      "dau_hieu_benh_di_kem": [
-        "Chưa rõ triệu chứng, chỉ muốn khám",
-        "Lần đầu đến phòng khám",
-        "Nhiều triệu chứng lẫn lộn, cần BS đánh giá",
-        "Theo giấy giới thiệu nhưng chưa có chẩn đoán"
-      ],
-      "tu_khoa_goi_y": ["không biết", "khám tổng quát", "lần đầu", "chưa rõ"]
+      "tu_khoa_goi_y": ["khám định kỳ", "cạo vôi", "X-quang", "tổng quát", "đau chung", "niềng răng", "implant", "sứ thẩm mỹ", "giấy khám"]
     }
-  ],
-  "danh_muc_khong_kham_va_chua_duoc": [
-    {
-      "ma": "REFERRAL_SURGERY_HOSPITAL",
-      "ten": "Phẫu thuật hàm mặt / xương hàm phức tạp",
-      "ly_do_tu_choi": "Phòng khám không đủ phòng mổ, gây mê và đội ngũ chuyên khoa hàm mặt.",
-      "dau_hieu_lien_quan": [
-        "Gãy xương hàm sau tai nạn",
-        "Khối u lớn vùng hàm mặt cần sinh thiết tại BV",
-        "Biến dạng khớp thái dương hàm nặng cần phẫu thuật tái tạo"
-      ],
-      "hanh_dong_goi_y": "Chuyển bệnh viện Răng Hàm Mặt hoặc BV đa khoa tuyến trên có khoa Hàm mặt.",
-      "tu_khoa_canh_bao": ["gãy hàm", "tai nạn hàm mặt", "u lớn", "phẫu thuật hàm", "mổ xương hàm"]
-    },
-    {
-      "ma": "REFERRAL_ONCOLOGY_OR_ADVANCED",
-      "ten": "Ung thư vùng miệng / bệnh lý nặng ngoài phạm vi nha khoa đại chúng",
-      "ly_do_tu_choi": "Cần chẩn đoán hình ảnh, hóa trị/xạ trị hoặc điều trị chuyên sâu tại BV Ung bướu.",
-      "dau_hieu_lien_quan": [
-        "Loét miệng không lành > 2 tuần, cứng cục",
-        "Khối sưng vùng lưỡi/họng tăng nhanh",
-        "Đau tai kèm nuốt khó, sụt cân không rõ nguyên nhân",
-        "Trẻ em dưới 3 tuổi cần gây mê bệnh viện cho điều trị phức tạp (mock từ chối tại PK)"
-      ],
-      "hanh_dong_goi_y": "Hướng dẫn đến BV Ung bướu / Tai Mũi Họng / Nhi có chuyên khoa phù hợp ngay.",
-      "tu_khoa_canh_bao": ["ung thư", "loét không lành", "khối u", "nuốt khó", "sụt cân", "gây mê trẻ nhỏ"]
-    }
-  ],
-  "quy_tac_uu_tien_khi_trung_dau_hieu": [
-    "Nếu có dấu hiệu REFERRAL_* → không đặt lịch điều trị tại PK; chỉ hướng dẫn chuyển tuyến.",
-    "Đau cấp + sưng lan → ưu tiên xem xét EMERGENCY trước SCALING.",
-    "Mất răng + muốn cố định → IMPLANT trước GENERAL.",
-    "Chỉ cao răng, không đau cấp → SCALING.",
-    "Không rõ → GENERAL hoặc hỏi thêm theo bộ câu hỏi tiếp nhận."
-  ],
-  "mock_slot_ngoai_gio": {
-    "ghi_chu": "Một số slot có thể bị 'đã đặt' ngẫu nhiên theo ngày trong code backend; file JSON này mô tả quy tắc, không thay thế engine sinh slot."
-  }
+  ]
 }

@@ -90,9 +90,9 @@ def _default_agent_state(
         "current_agent": "root",
         "symptoms_summary": None,
         "ai_diagnosis": None,
-        "needs_visit": False,
         "follow_up_count": 0,
-        "dental_case_code": None,
+        "specialist_concluded": False,
+        "category_code": None,
         "triage_complete": None,
         "intake_id": None,
         "available_slots": [],
@@ -191,7 +191,7 @@ async def invoke_tool(body: ToolInvokeBody):
                 date_iso=str(args.get("date_iso", "")),
                 hour=int(args.get("hour", 0)),
                 minute=int(args.get("minute", 0)),
-                dental_case_code=args.get("dental_case_code"),
+                category_code=args.get("category_code"),
             )
         except Exception as e:
             raise HTTPException(status_code=400, detail=str(e)) from e

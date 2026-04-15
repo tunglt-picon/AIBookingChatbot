@@ -7,60 +7,42 @@ Node flow (per user message turn):
   START
     │
     ▼
-  classify_intent          ← Root Orchestrator
+  classify_intent          ← Root Orchestrator (LLM phân intent)
     │
     ├─► "consultation"
-    │      │
     │      ▼
-    │   dental_specialist  ← Dental Specialist (text)
-    │      │
-    │      ├─► needs_visit=False → END  (return follow-up question to user)
-    │      │
-    │      └─► needs_visit=True
-    │             │
+    │   dental_specialist  ← Thu thập triệu chứng, phân loại category_code (CAT-01→05)
+    │      ├─► specialist_concluded=False → END  (hỏi thêm triệu chứng)
+    │      └─► specialist_concluded=True
     │             ▼
-    │          save_intake  ← persist BookingConsultIntake to DB
-    │             │
+    │          save_intake  ← Ghi BookingConsultIntake vào PostgreSQL
     │             ▼
-    │          query_slots  ← mock schedule service
-    │             │
+    │          query_slots  ← Đọc lịch trống mock theo category
     │             ▼
-    │          root_respond ← compose "here are your slots" message
-    │             │
+    │          root_respond ← Soạn tin nhắn "chọn giờ" cho BN
     │             ▼
     │           END
     │
     ├─► "select_slot"
-    │      │
-    │      ├─► (no intake or no slots yet)
-    │      │      ▼
-    │      │   booking_prepare ← walk-in intake + get_mock_schedule
-    │      │      │
-    │      │      ▼
-    │      └────► confirm_booking  ← parse chosen slot, write Reservation to DB
-    │      │
-    │      ▼
-    │   root_respond        ← booking confirmation message
-    │      │
-    │      ▼
-    │    END
+    │      ├─► chưa triage → dental_specialist
+    │      ├─► đủ intake + slots → confirm_booking
+    │      └─► thiếu → booking_prepare → confirm_booking
+    │
+    ├─► "confirm_appointment"
+    │      └─► confirm_booking → (skip_root_respond ? END : root_respond → END)
     │
     └─► "general"
-           │
-           ▼
-        root_respond
-           │
-           ▼
-          END
+           └─► root_respond → END
 
-State persistence: MemorySaver (in-process).
-Production: swap for AsyncPostgresSaver / AsyncRedisSaver.
+State persistence: Redis (langgraph-checkpoint-redis).
+  - Dev: redis-stack-server container trong Docker Compose.
+  - Config: REDIS_URL trong .env.
+  - Fallback: MemorySaver nếu Redis không kết nối được.
 """
 
 import logging
 from functools import lru_cache
 
-from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph import END, START, StateGraph
 
 from app.agents.state import AgentState
@@ -109,20 +91,18 @@ def _route_after_intent(state: AgentState) -> str:
 
 
 def _route_after_specialist(state: AgentState) -> str:
-    """If specialist decided visit is needed → persist + schedule; else wait for user."""
     sid = state.get("session_id")
-    if state.get("needs_visit", False):
-        logger.info("[graph][route] after dental_specialist session_id=%s -> save_intake", sid)
+    if state.get("specialist_concluded", False):
+        logger.info("[graph][route] after dental_specialist session_id=%s -> save_intake (concluded)", sid)
         return "save_intake"
     logger.info(
-        "[graph][route] after dental_specialist session_id=%s -> END (needs_visit=False, wait user)",
+        "[graph][route] after dental_specialist session_id=%s -> END (still collecting symptoms)",
         sid,
     )
     return END
 
 
 def _route_after_confirm(state: AgentState):
-    """If confirm_booking already sent the reply, skip root_respond (no second LLM)."""
     if state.get("skip_root_respond"):
         logger.info("[graph][route] after confirm_booking session_id=%s -> END (skip_root_respond)", state.get("session_id"))
         return END
@@ -132,7 +112,6 @@ def _route_after_confirm(state: AgentState):
 def _build_graph() -> StateGraph:
     builder = StateGraph(AgentState)
 
-    # ── Register nodes ────────────────────────────────────────────────────────
     builder.add_node("classify_intent", classify_intent_node)
     builder.add_node("dental_specialist", dental_specialist_node)
     builder.add_node("save_intake", save_intake_node)
@@ -141,7 +120,6 @@ def _build_graph() -> StateGraph:
     builder.add_node("confirm_booking", confirm_booking_node)
     builder.add_node("root_respond", root_respond_node)
 
-    # ── Edges ─────────────────────────────────────────────────────────────────
     builder.add_edge(START, "classify_intent")
 
     builder.add_conditional_edges(
@@ -180,10 +158,31 @@ def _build_graph() -> StateGraph:
     return builder
 
 
+def _create_checkpointer():
+    """Tạo Redis checkpointer; fallback MemorySaver nếu Redis không khả dụng."""
+    from app.config import settings
+
+    try:
+        from langgraph.checkpoint.redis import RedisSaver
+
+        checkpointer = RedisSaver(redis_url=settings.REDIS_URL)
+        checkpointer.setup()
+        logger.info("[graph] Redis checkpointer ready (%s)", settings.REDIS_URL)
+        return checkpointer
+    except Exception as exc:
+        logger.warning(
+            "[graph] Redis checkpointer failed (%s): %s — falling back to MemorySaver",
+            settings.REDIS_URL,
+            exc,
+        )
+        from langgraph.checkpoint.memory import MemorySaver
+        return MemorySaver()
+
+
 @lru_cache(maxsize=1)
 def get_graph():
     """Build and compile the graph (singleton per process)."""
-    checkpointer = MemorySaver()
+    checkpointer = _create_checkpointer()
     graph = _build_graph().compile(checkpointer=checkpointer)
     logger.info("LangGraph compiled successfully")
     return graph

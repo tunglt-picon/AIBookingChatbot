@@ -1,1 +1,1 @@
-"""Domain rules (mock clinic scheduling by dental case type)."""
+"""Domain rules — category profiles (CAT-01→05), slot generation, time windows."""

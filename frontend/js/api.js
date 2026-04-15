@@ -184,12 +184,12 @@ const ChatAPI = {
 const ScheduleAPI = {
   /**
    * @param {string|null} date  YYYY-MM-DD
-   * @param {string|null} dentalCaseCode  CAVITY | IMPLANT | GINGIVITIS | SCALING | EMERGENCY
+   * @param {string|null} categoryCode  CAT-01 | CAT-02 | CAT-03 | CAT-04 | CAT-05
    */
-  async getSlots(date = null, dentalCaseCode = null) {
+  async getSlots(date = null, categoryCode = null) {
     const q = new URLSearchParams();
     if (date) q.set("date", date);
-    if (dentalCaseCode) q.set("case", dentalCaseCode);
+    if (categoryCode) q.set("case", categoryCode);
     const suffix = q.toString() ? `?${q.toString()}` : "";
     return apiFetch(`/schedule/slots${suffix}`);
   },
@@ -199,9 +199,9 @@ const ScheduleAPI = {
   },
 
   /** Lịch mock cả tuần (file JSON). */
-  async getWeekSlots(dentalCaseCode = null, weekStartIso = null) {
+  async getWeekSlots(categoryCode = null, weekStartIso = null) {
     const q = new URLSearchParams();
-    if (dentalCaseCode) q.set("case", dentalCaseCode);
+    if (categoryCode) q.set("case", categoryCode);
     if (weekStartIso) q.set("week_start", weekStartIso);
     const suffix = q.toString() ? `?${q.toString()}` : "";
     return apiFetch(`/schedule/week/slots${suffix}`);

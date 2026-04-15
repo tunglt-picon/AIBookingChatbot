@@ -738,7 +738,7 @@ async function beginInlineReschedule(bubbleEl, panel) {
 
   try {
     const { ScheduleAPI } = window.DentalApp;
-    const caseCode = (bubbleEl.dataset.confirmDentalCase || "").trim();
+    const caseCode = (bubbleEl.dataset.confirmCategoryCode || "").trim();
     const data = await ScheduleAPI.getSlots(dateIso, caseCode || null);
     const slots = data?.slots || [];
     if (slots.length === 0) {
@@ -815,8 +815,8 @@ function injectAssistantMessageUi(bubbleEl, ui) {
   root.className = "msg-ui-root mt-3 pt-3 border-t border-slate-600/60";
 
   if (ui.template === "time_chips" && Array.isArray(ui.times)) {
-    if (ui.dental_case_code) {
-      bubbleEl.dataset.confirmDentalCase = String(ui.dental_case_code).trim();
+    if (ui.category_code) {
+      bubbleEl.dataset.confirmCategoryCode = String(ui.category_code).trim();
     }
     const labels = ui.times.map((t) => String(t).trim()).filter(Boolean);
     if (labels.length === 0) {
@@ -844,8 +844,8 @@ function injectAssistantMessageUi(bubbleEl, ui) {
   } else if (ui.template === "confirm_actions" && ui.slot_display) {
     bubbleEl.dataset.confirmDateIso = String(ui.date_iso || "").trim();
     bubbleEl.dataset.confirmSlotDisplay = String(ui.slot_display).trim();
-    if (ui.dental_case_code) {
-      bubbleEl.dataset.confirmDentalCase = String(ui.dental_case_code).trim();
+    if (ui.category_code) {
+      bubbleEl.dataset.confirmCategoryCode = String(ui.category_code).trim();
     }
     const panel = document.createElement("div");
     panel.className = "msg-confirm-panel";

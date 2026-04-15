@@ -63,7 +63,7 @@
         Mỗi khi người dùng gửi một tin nhắn, ứng dụng chạy graph từ nút <strong class="text-slate-200">START</strong> →
         <strong class="text-slate-200">classify_intent</strong>, rồi đi tiếp <em>một</em> nhánh tùy <code class="text-amber-200/90">intent</code> và trạng thái
         (<code class="text-amber-200/90">triage_complete</code>, <code class="text-amber-200/90">intake_id</code>, <code class="text-amber-200/90">available_slots</code>…).
-        Checkpointer hiện tại là <strong class="text-slate-200">MemorySaver</strong> (trong process); production có thể đổi sang Postgres/Redis.
+        Checkpointer mặc định là <strong class="text-slate-200">Redis</strong> (<code class="text-sky-400/90">langgraph-checkpoint-redis</code>) — state được lưu giữa các lần restart server. Nếu Redis không kết nối được, fallback sang <code class="text-slate-400">MemorySaver</code> (mất state khi restart).
       </p>
     </section>
 
@@ -89,8 +89,8 @@ flowchart TB
   CI -->|select_slot · đủ intake + slots| CB
   CI -->|select_slot · thiếu intake hoặc slots| BP
 
-  DS -->|needs_visit = true| SI
-  DS -->|needs_visit = false| E1([END]):::endN
+  DS -->|specialist chốt xong| SI
+  DS -->|còn hỏi thêm| E1([END]):::endN
 
   SI --> QS
   QS --> RR
@@ -156,7 +156,7 @@ flowchart LR
             <tr class="hover:bg-slate-800/40">
               <td class="px-3 py-2 font-mono text-sky-300">dental_specialist</td>
               <td class="px-3 py-2 text-slate-400">dental_specialist.py</td>
-              <td class="px-3 py-2">Hỏi triệu chứng, rubric mock, chốt <code class="text-amber-200/80">dental_case_code</code> / <code class="text-amber-200/80">needs_visit</code>.</td>
+              <td class="px-3 py-2">Hỏi triệu chứng, rubric mock, chốt <code class="text-amber-200/80">category_code</code> → <code class="text-amber-200/80">specialist_concluded</code>.</td>
             </tr>
             <tr class="hover:bg-slate-800/40">
               <td class="px-3 py-2 font-mono text-sky-300">save_intake</td>
@@ -194,7 +194,7 @@ flowchart LR
       <ul class="text-sm text-slate-400 space-y-1.5 font-mono leading-relaxed">
         <li><span class="text-amber-200/90">messages</span> — lịch sử hội thoại (reducer add_messages)</li>
         <li><span class="text-amber-200/90">intent</span>, <span class="text-amber-200/90">current_agent</span></li>
-        <li><span class="text-amber-200/90">symptoms_summary</span>, <span class="text-amber-200/90">dental_case_code</span>, <span class="text-amber-200/90">needs_visit</span>, <span class="text-amber-200/90">follow_up_count</span>, <span class="text-amber-200/90">triage_complete</span></li>
+        <li><span class="text-amber-200/90">symptoms_summary</span>, <span class="text-amber-200/90">category_code</span>, <span class="text-amber-200/90">specialist_concluded</span>, <span class="text-amber-200/90">follow_up_count</span>, <span class="text-amber-200/90">triage_complete</span></li>
         <li><span class="text-amber-200/90">intake_id</span>, <span class="text-amber-200/90">available_slots</span>, <span class="text-amber-200/90">selected_slot</span>, <span class="text-amber-200/90">pending_confirmation_slot</span></li>
         <li><span class="text-amber-200/90">booking_confirmed</span>, <span class="text-amber-200/90">reservation_id</span>, <span class="text-amber-200/90">skip_root_respond</span>, <span class="text-amber-200/90">extra</span></li>
       </ul>

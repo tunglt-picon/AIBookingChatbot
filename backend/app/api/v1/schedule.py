@@ -9,12 +9,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
 from app.models.reservation import Reservation
 from app.schemas.reservation import AvailableSlot, ReservationResponse, SlotsResponse
-from app.domain.dental_cases import normalize_case_code
+from app.domain.dental_cases import normalize_category_code
 from app.services import auth_service
 from app.services.mock_week_schedule_loader import (
     build_week_availability_payload,
-    first_mock_date_iso_for_case,
-    get_mock_slots_for_date_and_case,
+    first_mock_date_iso_for_category,
+    get_mock_slots_for_date_and_category,
     list_mock_date_isos,
 )
 
@@ -41,11 +41,11 @@ async def get_available_slots(
     date: Optional[str] = Query(default=None, description="YYYY-MM-DD"),
     case: Optional[str] = Query(
         default=None,
-        description="CAVITY | IMPLANT | GINGIVITIS | SCALING | EMERGENCY",
+        description="CAT-01 | CAT-02 | CAT-03 | CAT-04 | CAT-05",
     ),
 ):
     """Slot trong một ngày — chỉ từ file mock (dev: không cần JWT)."""
-    code = normalize_case_code(case)
+    code = normalize_category_code(case)
     mock_days = set(list_mock_date_isos())
 
     if date:
@@ -54,16 +54,16 @@ async def get_available_slots(
         except ValueError:
             raise HTTPException(status_code=400, detail="Invalid date format. Use YYYY-MM-DD.")
     else:
-        d_iso = first_mock_date_iso_for_case(code)
+        d_iso = first_mock_date_iso_for_category(code)
 
     if d_iso not in mock_days:
-        return SlotsResponse(date=d_iso, dental_case_code=code, slots=[])
+        return SlotsResponse(date=d_iso, category_code=code, slots=[])
 
-    raw_slots = get_mock_slots_for_date_and_case(d_iso, code, limit=12)
+    raw_slots = get_mock_slots_for_date_and_category(d_iso, code, limit=12)
     slots = [AvailableSlot.model_validate(s) for s in raw_slots]
     return SlotsResponse(
         date=d_iso,
-        dental_case_code=code,
+        category_code=code,
         slots=slots,
     )
 
@@ -72,7 +72,7 @@ async def get_available_slots(
 async def get_week_slots_mock(
     case: Optional[str] = Query(
         default=None,
-        description="Lọc một mã loại khám; bỏ trống = trả đủ loại mỗi ngày",
+        description="Lọc một category; bỏ trống = trả đủ loại mỗi ngày",
     ),
     week_start: Optional[str] = Query(
         default=None,
@@ -81,7 +81,7 @@ async def get_week_slots_mock(
 ):
     """Lịch mock cả tuần (dev: không cần JWT)."""
     return build_week_availability_payload(
-        dental_case_code=case,
+        category_code=case,
         week_start_iso=week_start,
     )
 
@@ -91,7 +91,6 @@ async def list_reservations(
     authorization: Optional[str] = Header(default=None),
     db: AsyncSession = Depends(get_db),
 ):
-    """Danh sách reservation của user — vẫn yêu cầu JWT."""
     user = await _get_current_user(authorization, db)
     result = await db.execute(
         select(Reservation)

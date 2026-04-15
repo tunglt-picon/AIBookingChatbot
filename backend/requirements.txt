@@ -26,6 +26,7 @@ langchain-openai
 langchain-ollama
 langchain-google-genai
 langgraph
+langgraph-checkpoint-redis
 
 # ── Observability ─────────────────────────────────
 langfuse

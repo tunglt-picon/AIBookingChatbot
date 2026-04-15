@@ -1,8 +1,11 @@
 """
-Mock Schedule Service – interacts with the `reservations` table.
+Schedule tools cho LangGraph agent.
 
-In production, this would call an actual clinic scheduling system (HIS/EHR API).
-The mock generates realistic time slots and writes reservations to PostgreSQL.
+- resolve_requested_slot: parse thời gian BN yêu cầu → slot cụ thể.
+- get_mock_schedule: đọc lịch trống mock (JSON) theo category + ngày.
+- book_appointment: ghi Reservation vào PostgreSQL.
+
+Production: thay mock bằng HIS/EHR API thật.
 """
 
 import json
@@ -19,19 +22,19 @@ def resolve_requested_slot(
     date_iso: str,
     hour: int,
     minute: int,
-    dental_case_code: Optional[str] = None,
+    category_code: Optional[str] = None,
 ) -> dict:
     """
-    Kiểm tra lịch theo **loại lý do khám** (thời lượng + khung giờ riêng).
+    Kiểm tra lịch theo category (thời lượng + khung giờ riêng).
     """
     from app.domain.dental_cases import (
         build_slot_dict,
         minutes_to_hm,
-        normalize_case_code,
-        valid_start_minutes_for_case,
+        normalize_category_code,
+        valid_start_minutes_for_category,
     )
 
-    code = normalize_case_code(dental_case_code)
+    code = normalize_category_code(category_code)
     try:
         raw = date_iso.strip()
         day = date.fromisoformat(raw) if len(raw) <= 10 else datetime.fromisoformat(raw).date()
@@ -52,7 +55,7 @@ def resolve_requested_slot(
         }
 
     base = datetime(day.year, day.month, day.day, tzinfo=timezone.utc)
-    starts = valid_start_minutes_for_case(day, code)
+    starts = valid_start_minutes_for_category(day, code)
     if not starts:
         return {
             "kind": "closed",
@@ -94,7 +97,7 @@ def resolve_requested_slot(
     }
 
 
-# Vietnamese weekday keywords → Python weekday (Mon=0 … Sun=6); used for user message parsing
+# Vietnamese weekday keywords → Python weekday
 _VI_WEEKDAY_PHRASES: tuple[tuple[str, int], ...] = (
     ("chủ nhật", 6),
     ("cn", 6),
@@ -114,10 +117,6 @@ _VI_WEEKDAY_PHRASES: tuple[tuple[str, int], ...] = (
 
 
 def infer_date_str_from_user_text(user_text: str) -> Optional[str]:
-    """
-    If the patient mentions a Vietnamese weekday or 'ngày mai', return YYYY-MM-DD
-    for mock slot generation. Otherwise None (caller uses default next working day).
-    """
     if not user_text:
         return None
     low = user_text.lower()
@@ -143,80 +142,70 @@ def infer_date_str_from_user_text(user_text: str) -> Optional[str]:
 async def get_mock_schedule(
     scope: str = "day",
     date_str: Optional[str] = None,
-    dental_case_code: Optional[str] = None,
+    category_code: Optional[str] = None,
     week_start_iso: Optional[str] = None,
 ) -> str:
     """
-    Đọc lịch trống **chỉ từ file mock** `lich_trong_tuan_trong_vi.json` (không gọi thuật toán sinh slot).
+    Đọc lịch trống từ file mock lich_trong_tuan_trong_vi.json.
 
     Args:
-        scope: "day" — một ngày; "week" — cả tuần trong file.
-        date_str: YYYY-MM-DD khi scope=day. Bỏ trống → chọn ngày đầu tiên trong file có slot cho dental_case_code.
-        dental_case_code: CAVITY | IMPLANT | GINGIVITIS | SCALING | EMERGENCY (mặc định SCALING).
-        week_start_iso: Khi scope=week, phải khớp meta.tuan_bat_dau_iso nếu truyền; bỏ trống = tuần mặc định file.
+        scope: "day" hoặc "week".
+        date_str: YYYY-MM-DD khi scope=day.
+        category_code: CAT-01 | CAT-02 | CAT-03 | CAT-04 | CAT-05.
+        week_start_iso: Khi scope=week.
 
     Returns:
-        scope=day: JSON { scope, ok, date, dental_case_code, slots, nguon_du_lieu, loi? }.
-        scope=week: JSON { scope, ok, meta, ngay, nguon_du_lieu, loi? } (cấu trúc như build_week_availability_payload).
+        JSON string.
     """
-    from app.domain.dental_cases import normalize_case_code
-
+    from app.domain.dental_cases import normalize_category_code
     from app.services.mock_week_schedule_loader import (
         build_week_availability_payload,
-        first_mock_date_iso_for_case,
-        get_mock_slots_for_date_and_case,
+        first_mock_date_iso_for_category,
+        get_mock_slots_for_date_and_category,
         list_mock_date_isos,
     )
 
-    code = normalize_case_code(dental_case_code)
+    code = normalize_category_code(category_code)
     src = "lich_trong_tuan_trong_vi.json"
     low = (scope or "day").strip().lower()
 
     if low in ("week", "tuan", "whole_week", "ca_tuan"):
         payload = build_week_availability_payload(
-            dental_case_code=dental_case_code,
+            category_code=category_code,
             week_start_iso=week_start_iso,
         )
         payload["scope"] = "week"
         payload["nguon_du_lieu"] = src
-        logger.info(
-            "[tool] get_mock_schedule week case=%s week=%s ok=%s",
-            dental_case_code,
-            week_start_iso,
-            payload.get("ok"),
-        )
+        logger.info("[tool] get_mock_schedule week category=%s ok=%s", category_code, payload.get("ok"))
         return json.dumps(payload, ensure_ascii=False)
 
     mock_days = set(list_mock_date_isos())
     if date_str and date_str.strip():
         d_iso = date_str.strip()[:10]
     else:
-        d_iso = first_mock_date_iso_for_case(code)
+        d_iso = first_mock_date_iso_for_category(code)
 
     if d_iso not in mock_days:
-        return json.dumps(
-            {
-                "scope": "day",
-                "ok": False,
-                "date": d_iso,
-                "dental_case_code": code,
-                "slots": [],
-                "nguon_du_lieu": src,
-                "loi": f"Ngày {d_iso} không có trong file mock. Các ngày có dữ liệu: {sorted(mock_days)}",
-            },
-            ensure_ascii=False,
-        )
+        return json.dumps({
+            "scope": "day",
+            "ok": False,
+            "date": d_iso,
+            "category_code": code,
+            "slots": [],
+            "nguon_du_lieu": src,
+            "loi": f"Ngày {d_iso} không có trong file mock. Các ngày: {sorted(mock_days)}",
+        }, ensure_ascii=False)
 
-    slots = get_mock_slots_for_date_and_case(d_iso, code, limit=12)
+    slots = get_mock_slots_for_date_and_category(d_iso, code, limit=12)
     payload = {
         "scope": "day",
         "ok": True,
         "date": d_iso,
-        "dental_case_code": code,
+        "category_code": code,
         "slots": slots,
         "nguon_du_lieu": src,
     }
-    logger.info("[tool] get_mock_schedule day date=%s case=%s count=%s", d_iso, code, len(slots))
+    logger.info("[tool] get_mock_schedule day date=%s category=%s count=%s", d_iso, code, len(slots))
     return json.dumps(payload, ensure_ascii=False)
 
 
@@ -227,15 +216,7 @@ async def book_appointment(
     datetime_str: str,
 ) -> str:
     """
-    Book an appointment slot and persist a Reservation record to the database.
-
-    Args:
-        patient_user_id: The ID of the patient.
-        intake_id: The ID of the BookingConsultIntake record.
-        datetime_str: ISO datetime string for the appointment.
-
-    Returns:
-        JSON string with the created reservation details.
+    Book an appointment slot and persist a Reservation record.
     """
     from app.database import async_session_factory
     from app.models.reservation import Reservation, ReservationSource, ReservationStatus
@@ -247,10 +228,8 @@ async def book_appointment(
         return json.dumps({"error": f"Invalid datetime format: {datetime_str}"})
 
     logger.info(
-        "[tool] book_appointment patient_user_id=%s intake_id=%s at=%s",
-        patient_user_id,
-        intake_id,
-        visit_dt.isoformat(),
+        "[tool] book_appointment patient=%s intake=%s at=%s",
+        patient_user_id, intake_id, visit_dt.isoformat(),
     )
     async with async_session_factory() as session:
         reservation = Reservation(

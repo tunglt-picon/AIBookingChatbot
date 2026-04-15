@@ -7,16 +7,16 @@ from app.models.reservation import ReservationSource, ReservationStatus
 
 
 class AvailableSlot(BaseModel):
-    datetime_str: str  # ISO format
-    display: str       # human-readable label (locale-specific), e.g. "Mon, 24/03 – 14:00"
+    datetime_str: str
+    display: str
     time_hm: Optional[str] = None
     duration_minutes: Optional[int] = None
-    dental_case_code: Optional[str] = None
+    category_code: Optional[str] = None
 
 
 class SlotsResponse(BaseModel):
     date: str
-    dental_case_code: Optional[str] = None
+    category_code: Optional[str] = None
     slots: list[AvailableSlot]
 
 

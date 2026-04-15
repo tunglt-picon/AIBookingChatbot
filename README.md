@@ -8,16 +8,17 @@
 
 1. [Architecture overview](#1-architecture-overview)
 2. [Tech stack](#2-tech-stack)
-3. [Project structure](#3-project-structure)
-4. [Quick start](#4-quick-start)
-5. [Configuration](#5-configuration)
-6. [LangGraph multi-agent design](#6-langgraph-multi-agent-design)
-7. [API reference](#7-api-reference)
-8. [User interface](#8-user-interface)
-9. [Observability (Langfuse)](#9-observability-langfuse)
-10. [Quality evaluation (Eval)](#10-quality-evaluation-eval)
-11. [Production extensions](#11-production-extensions)
-12. [Troubleshooting](#12-troubleshooting)
+3. [Category system](#3-category-system)
+4. [Project structure](#4-project-structure)
+5. [Quick start](#5-quick-start)
+6. [Configuration](#6-configuration)
+7. [LangGraph multi-agent design](#7-langgraph-multi-agent-design)
+8. [API reference](#8-api-reference)
+9. [User interface](#9-user-interface)
+10. [Observability (Langfuse)](#10-observability-langfuse)
+11. [Quality evaluation (Eval)](#11-quality-evaluation-eval)
+12. [Production extensions](#12-production-extensions)
+13. [Troubleshooting](#13-troubleshooting)
 
 ---
 
@@ -33,9 +34,9 @@
 └───────────────────────────┬────────────────────────────────┘
                             │
 ┌───────────────────────────▼────────────────────────────────┐
-│  LangGraph (MemorySaver) — classify_intent → … → END       │
+│  LangGraph (Redis checkpoint) — classify_intent → … → END  │
 │  · Root LLM: intent, FAQ, slot wording, booking UX         │
-│  · Dental specialist LLM: text intake + triage rubric JSON │
+│  · Dental specialist LLM: triệu chứng → category_code     │
 │  · Tools: get_mock_schedule, save_consult_intake,          │
 │           book_appointment (+ helpers in schedule_tools)   │
 └───────────────────────────┬────────────────────────────────┘
@@ -45,10 +46,15 @@
 │  PostgreSQL     │                 │  Mock JSON (dev)        │
 │  users, sessions│                 │  lich_trong_tuan…json   │
 │  messages,      │                 │  triage_symptom_rubric… │
-│  intakes, resv  │                 │  (+ triage_examples.tsv) │
+│  intakes, resv  │                 │  phong_kham_danh_muc…   │
 └─────────────────┘                 └─────────────────────────┘
-
-Optional: Redis container in Docker Compose is **not used by app code** yet (reserved for future cache / rate limit).
+         ▲
+         │
+┌─────────────────┐
+│  Redis Stack    │
+│  graph state    │
+│  (checkpoint)   │
+└─────────────────┘
 ```
 
 **Lab documentation (static HTML, no build):**
@@ -68,11 +74,11 @@ Optional: Redis container in Docker Compose is **not used by app code** yet (res
 | **Backend** | FastAPI 0.115 + Uvicorn | Async, SSE streaming |
 | **ORM** | SQLAlchemy 2.0 (async) | asyncpg driver |
 | **Database** | PostgreSQL 16 | Docker Compose |
-| **Redis (Compose)** | Redis 7 | Optional sidecar — **not imported in Python** yet |
-| **Agents** | LangGraph 0.2 | Stateful multi-turn graph |
-| **Default LLM** | Google Gemini **2.5 Flash-Lite** (`LLM_PROVIDER=google`) | API key; stable for new accounts (2.0 Flash deprecated) |
+| **Redis** | Redis Stack (RedisJSON + RediSearch) | LangGraph checkpoint persistence — state giữ nguyên sau restart |
+| **Agents** | LangGraph 0.2 + langgraph-checkpoint-redis | Stateful multi-turn graph |
+| **Default LLM** | Google Gemini **2.5 Flash-Lite** (`LLM_PROVIDER=google`) | API key; stable for new accounts |
 | **Root agent** | `GOOGLE_ROOT_MODEL` or Ollama / OpenAI / compatible | Intent + booking UX |
-| **Specialist agent** | `GOOGLE_SPECIALIST_MODEL` or same stack | Symptom intake + `dental_case_code` (rubric in `data/mock/`) |
+| **Specialist agent** | `GOOGLE_SPECIALIST_MODEL` or same stack | Symptom intake + `category_code` (rubric in `data/mock/`) |
 | **Observability** | Langfuse | Trace LLM calls |
 | **Eval (stub)** | DeepEval / Ragas | Placeholders, ready to wire |
 | **Auth** | JWT (python-jose) + bcrypt | Stateless |
@@ -81,7 +87,31 @@ Optional: Redis container in Docker Compose is **not used by app code** yet (res
 
 ---
 
-## 3. Project structure
+## 3. Category system
+
+Hệ thống 5 danh mục khám — mỗi danh mục có thời lượng, khung giờ, và triệu chứng đặc trưng.
+
+| Code | Tên | Thời lượng | Khung giờ |
+|------|-----|-----------|-----------|
+| **CAT-01** | Trám răng / Phục hồi thẩm mỹ | 45 phút | Sáng 08:00–11:30 · Chiều 13:30–17:00 |
+| **CAT-02** | Điều trị Tủy / Nội nha | 60 phút | Sáng 08:00–11:00 · Chiều 13:30–16:30 |
+| **CAT-03** | Nhổ răng / Tiểu phẫu | 40 phút | Sáng 07:30–11:00 · Chiều 13:30–16:00 |
+| **CAT-04** | Nha khoa Trẻ em | 30 phút | Sáng 08:00–11:30 · Chiều 14:00–16:30 |
+| **CAT-05** | Khám Tổng quát & X-Quang | 30 phút | Sáng 07:30–11:30 · Chiều 13:30–17:00 |
+
+**Luồng phân loại:**
+
+1. Bệnh nhân mô tả triệu chứng
+2. `dental_specialist` thu thập thêm thông tin (tối đa `MAX_FOLLOW_UP_QUESTIONS` câu hỏi)
+3. Agent dùng **symptom matrix** (152 triệu chứng) để chấm điểm category
+4. Xác nhận với bệnh nhân — nếu 2 category gần nhau, cho bệnh nhân chọn
+5. Tra lịch trống theo `category_code` + thời gian mong muốn
+
+Định nghĩa chi tiết: `backend/app/domain/dental_cases.py` và `backend/data/mock/triage_symptom_rubric_vi.json`.
+
+---
+
+## 4. Project structure
 
 ```
 AIBookingChatbot/
@@ -110,15 +140,15 @@ AIBookingChatbot/
 │   │   ├── agents/              # LangGraph multi-agent system
 │   │   │   ├── state.py         # AgentState TypedDict
 │   │   │   ├── llm_factory.py   # LLM provider abstraction
-│   │   │   ├── root_orchestrator.py  # classify_intent, root_respond, booking_prepare, etc.
-│   │   │   ├── dental_specialist.py  # Text intake node + rubric prompt
-│   │   │   └── graph.py         # StateGraph definition & compilation
+│   │   │   ├── root_orchestrator.py  # classify_intent, root_respond, booking nodes
+│   │   │   ├── dental_specialist.py  # Symptom intake + category classification
+│   │   │   └── graph.py         # StateGraph + Redis checkpointer
 │   │   │
-│   │   ├── domain/              # Dental case profiles (duration, windows)
+│   │   ├── domain/              # Category profiles (CAT-01→05), slot generation
 │   │   │   └── dental_cases.py
 │   │   │
 │   │   ├── tools/               # LangChain @tool (+ helpers)
-│   │   │   ├── schedule_tools.py  # get_mock_schedule, book_appointment, resolve_requested_slot, …
+│   │   │   ├── schedule_tools.py  # get_mock_schedule, book_appointment, resolve_requested_slot
 │   │   │   └── intake_tools.py    # save_consult_intake
 │   │   │
 │   │   ├── services/            # Business logic
@@ -131,13 +161,11 @@ AIBookingChatbot/
 │   │       ├── langfuse_client.py   # Langfuse tracing wrapper
 │   │       └── eval_placeholders.py # DeepEval/Ragas stubs
 │   │
-│   ├── data/mock/               # lich_trong_tuan_trong_vi.json, triage_*.json/.tsv
+│   ├── data/mock/               # Mock data (lịch trống, symptom rubric, danh mục)
+│   ├── scripts/                 # generate_lich_trong_tuan_json.py (sinh lịch mock)
 │   ├── uploads/                 # Static uploads dir (gitignored)
 │   ├── requirements.txt
 │   └── Dockerfile
-│
-├── scripts/                     # Repo root helpers
-│   └── build_triage_symptom_rubric.py  # rebuild triage_symptom_rubric_vi.json from TSV
 │
 ├── frontend/
 │   ├── index.html               # Single-page app (Tailwind + vanilla JS)
@@ -146,7 +174,8 @@ AIBookingChatbot/
 │   ├── lab-langgraph.html       # LangGraph diagram
 │   ├── js/
 │   │   ├── api.js               # API client (Auth, Chat, Schedule)
-│   │   └── app.js               # UI logic, SSE handler
+│   │   ├── app.js               # UI logic, SSE handler
+│   │   └── admin.js             # Admin lab UI
 │   └── css/
 │       └── custom.css           # Animations, custom components
 │
@@ -158,7 +187,7 @@ AIBookingChatbot/
 
 ---
 
-## 4. Quick start
+## 5. Quick start
 
 ### Requirements
 
@@ -174,7 +203,7 @@ cd AIBookingChatbot
 
 # Create backend env file
 cp .env.example backend/.env
-# Edit backend/.env as needed (see section 5)
+# Edit backend/.env as needed (see section 6)
 ```
 
 ### Step 2: Start PostgreSQL and Redis
@@ -183,13 +212,12 @@ cp .env.example backend/.env
 docker compose up postgres redis -d
 ```
 
+> **Lưu ý:** Docker Compose dùng `redis/redis-stack-server` (có RedisJSON + RediSearch) — bắt buộc cho `langgraph-checkpoint-redis`.
+
 ### Step 3: Pull AI models (Ollama)
 
 ```bash
 # Root orchestrator – text model (example)
-ollama pull qwen3.5:9b
-
-# Dental specialist – text model (can match root model)
 ollama pull qwen2.5:7b
 
 # Start Ollama server
@@ -200,14 +228,14 @@ ollama serve
 
 ```bash
 cd backend
-python -m venv .venv
+python3 -m venv .venv
 source .venv/bin/activate       # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 
 uvicorn app.main:app --reload --port 8000
 ```
 
-Tables are created automatically on first startup.
+Tables are created automatically on first startup. Redis indexes are created by `langgraph-checkpoint-redis` on first graph compilation.
 
 ### Step 5: Open the UI
 
@@ -215,7 +243,7 @@ Open `frontend/index.html` with **Live Server** (VS Code) or:
 
 ```bash
 cd frontend
-python -m http.server 5500
+python3 -m http.server 5500
 # Open: http://localhost:5500
 ```
 
@@ -229,15 +257,23 @@ docker compose up --build
 
 ---
 
-## 5. Configuration
+## 6. Configuration
 
 All settings are read from `backend/.env`. See `.env.example` for the full list.
 
+### Redis (LangGraph checkpoint)
+
+```env
+REDIS_URL=redis://localhost:6379
+```
+
+Graph state (conversation context, intent, category, slots) được persist trong Redis. Nếu Redis không kết nối được, backend tự fallback `MemorySaver` (mất state khi restart).
+
 ### LLM provider
 
-#### Option A: Google Gemini (API key — default in repo)
+#### Option A: Google Gemini (API key — default)
 
-Use **Gemini 2.5** stable IDs — `gemini-2.0-flash` is deprecated for new API keys ([models doc](https://ai.google.dev/gemini-api/docs/models)). Defaults use the lightest stable option:
+Use **Gemini 2.5** stable IDs — `gemini-2.0-flash` is deprecated for new API keys ([models doc](https://ai.google.dev/gemini-api/docs/models)).
 
 ```env
 LLM_PROVIDER=google
@@ -253,16 +289,6 @@ Get a key at [Google AI Studio](https://aistudio.google.com/apikey).
 | `gemini-2.5-flash-lite` | Default — lowest cost/latency for routing + intake |
 | `gemini-2.5-flash` | Better reasoning / structured JSON if needed |
 | `gemini-2.5-pro` | Heavier tasks only |
-
-Preview models (`gemini-3-*-preview`, etc.) change often; prefer stable IDs for production.
-
-**Kiểm tra model còn mở với API key của bạn** (Google returns the authoritative list):
-
-```bash
-curl -s "https://generativelanguage.googleapis.com/v1beta/models?key=$GOOGLE_API_KEY" | head -c 2000
-```
-
-Tìm các dòng `name` dạng `models/gemini-2.5-flash-lite` — trong `.env` chỉ cần phần sau `models/` (ví dụ `gemini-2.5-flash-lite`).
 
 #### Option B: Ollama (local)
 
@@ -295,13 +321,12 @@ OPENAI_COMPATIBLE_SPECIALIST_MODEL=Qwen/Qwen2.5-7B-Instruct-Turbo
 ### Merging control (limit follow-up questions)
 
 ```env
-# Max follow-up questions from the specialist before forcing a conclusion
 MAX_FOLLOW_UP_QUESTIONS=3
 ```
 
 ---
 
-## 6. LangGraph multi-agent design
+## 7. LangGraph multi-agent design
 
 ### Graph state (`AgentState`)
 
@@ -311,16 +336,18 @@ See `backend/app/agents/state.py` for the full TypedDict. Important fields:
 |-------|------|
 | `messages` | Conversation (reducer `add_messages`) |
 | `intent` | `consultation` \| `select_slot` \| `confirm_appointment` \| `general` |
-| `symptoms_summary`, `dental_case_code`, `triage_complete` | After specialist / save_intake |
+| `symptoms_summary`, `category_code`, `specialist_concluded`, `triage_complete` | After specialist / save_intake |
 | `intake_id`, `available_slots`, `pending_confirmation_slot` | Booking handoff |
 | `booking_confirmed`, `reservation_id`, `skip_root_respond` | Confirm path |
 | `follow_up_count` | Caps specialist follow-up questions |
+
+> **Lưu ý DB:** Cột trong PostgreSQL vẫn tên `dental_case_code` (tránh migration). Logic code dùng `category_code` và map khi ghi DB.
 
 ### Flow (each user message)
 
 ```
 START → classify_intent
-  ├── consultation → dental_specialist → (needs_visit?) → save_intake → query_slots → root_respond → END
+  ├── consultation → dental_specialist → (concluded?) → save_intake → query_slots → root_respond → END
   ├── select_slot  → dental_specialist if not triage_complete
   │                → confirm_booking if intake + slots ready
   │                → booking_prepare → confirm_booking if prerequisites missing
@@ -333,22 +360,23 @@ Diagrams: `frontend/lab-langgraph.html` (edges) and `frontend/lab-architecture.h
 ### Merging control
 
 1. `follow_up_count` increments each specialist turn.
-2. When `follow_up_count >= MAX_FOLLOW_UP_QUESTIONS` (default 3), the specialist must conclude, `needs_visit` is set, and the graph continues to `save_intake → query_slots → root_respond`.
+2. When `follow_up_count >= MAX_FOLLOW_UP_QUESTIONS` (default 3), the specialist must conclude (`specialist_concluded=True`), and the graph continues to `save_intake → query_slots → root_respond`.
 
-### State persistence
+### State persistence (Redis)
 
-- **MVP**: `MemorySaver` (in-process; lost on server restart).
-- **Production**: use `AsyncPostgresSaver` or `AsyncRedisSaver`.
+- **Default**: `RedisSaver` từ `langgraph-checkpoint-redis` — state được persist trong Redis, giữ nguyên sau restart.
+- **Fallback**: Nếu Redis không kết nối được, tự động chuyển sang `MemorySaver` (mất state khi restart).
 
 ```python
-# graph.py – production upgrade (example)
-from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
-checkpointer = AsyncPostgresSaver.from_conn_string(settings.DATABASE_URL)
+# graph.py — _create_checkpointer()
+from langgraph.checkpoint.redis import RedisSaver
+checkpointer = RedisSaver.from_conn_string(settings.REDIS_URL)
+checkpointer.setup()
 ```
 
 ---
 
-## 7. API reference
+## 8. API reference
 
 ### Authentication
 
@@ -380,9 +408,8 @@ Authorization: Bearer <token>
 
 POST /api/v1/chat/sessions/{session_id}/messages
 Content-Type: multipart/form-data
-  message: "I'd like to book a cleaning"
+  message: "Tôi bị đau răng, ê buốt khi ăn đồ lạnh"
   authorization: "Bearer <token>"
-  # Text only today — no image field on this endpoint.
 
 POST /api/v1/chat/sessions/{session_id}/close
 Authorization: Bearer <token>
@@ -391,10 +418,11 @@ Authorization: Bearer <token>
 ### Schedule and reservations (mock week JSON)
 
 ```bash
-# Day slots from mock file — JWT not required in dev
-GET /api/v1/schedule/slots?date=2026-03-30&case=SCALING
+# Slot trống theo ngày + category — JWT not required in dev
+GET /api/v1/schedule/slots?date=2026-04-21&case=CAT-01
 
-GET /api/v1/schedule/week/slots?case=CAVITY&week_start=2026-03-30
+# Lịch cả tuần
+GET /api/v1/schedule/week/slots?case=CAT-02&week_start=2026-04-20
 
 GET /api/v1/schedule/reservations
 Authorization: Bearer <token>
@@ -414,7 +442,7 @@ GET  /api/v1/admin/lab/triage-rubric
 ```javascript
 { "type": "status", "message": "Processing..." }
 
-{ "type": "token", "content": "Hello" }
+{ "type": "token", "content": "Chào bạn" }
 
 {
   "type": "done",
@@ -422,12 +450,12 @@ GET  /api/v1/admin/lab/triage-rubric
   "agent": "specialist",
   "booking": {
     "reservation_id": 5,
-    "selected_slot": "14:00, 24/03/2026"
+    "selected_slot": "14:00, 21/04/2026"
   },
   "intake": {
     "intake_id": 3,
-    "needs_visit": true,
-    "ai_diagnosis": "..."
+    "ai_diagnosis": "...",
+    "category_code": "CAT-01"
   }
 }
 
@@ -436,7 +464,7 @@ GET  /api/v1/admin/lab/triage-rubric
 
 ---
 
-## 8. User interface
+## 9. User interface
 
 Single-page app under `frontend/` (no build step).
 
@@ -449,7 +477,6 @@ Single-page app under `frontend/` (no build step).
 | **Status text** | Node progress hints |
 | **Booking card** | Reservation id and time after confirm |
 | **Quick actions** | Suggested prompts |
-| **Image lightbox** | Full-size image |
 | **Responsive** | Mobile-friendly |
 
 Set the API base in `frontend/index.html`:
@@ -462,7 +489,7 @@ Set the API base in `frontend/index.html`:
 
 ---
 
-## 9. Observability (Langfuse)
+## 10. Observability (Langfuse)
 
 1. Enable in `.env`:
 
@@ -484,7 +511,7 @@ Traces include session id (thread id), node spans, LLM calls, and tool calls suc
 
 ---
 
-## 10. Quality evaluation (Eval)
+## 11. Quality evaluation (Eval)
 
 See `backend/app/observability/eval_placeholders.py` for DeepEval/Ragas **stubs**. They are **not** invoked from the chat pipeline until you wire them yourself.
 
@@ -512,23 +539,9 @@ metric = GEval(
 
 ---
 
-## 11. Production extensions
+## 12. Production extensions
 
-### Postgres checkpointer
-
-```python
-# backend/app/agents/graph.py
-from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
-
-async def get_graph():
-    async with AsyncPostgresSaver.from_conn_string(
-        settings.DATABASE_URL.replace("+asyncpg", "")
-    ) as checkpointer:
-        await checkpointer.setup()
-        return _build_graph().compile(checkpointer=checkpointer)
-```
-
-### Alembic
+### Alembic (DB migrations)
 
 ```bash
 cd backend
@@ -541,13 +554,14 @@ alembic upgrade head
 ### Scaling notes
 
 - **Backend**: Gunicorn + Uvicorn workers.
-- **Checkpointer**: Redis or Postgres shared across workers.
+- **Redis**: Shared across all workers (graph state + checkpoint).
 - **Uploads**: S3 / GCS instead of local `uploads/`.
 - **Queue**: Celery + Redis for heavy jobs.
+- **Redis TTL**: Cấu hình TTL cho checkpoint để tự xóa session cũ (xem `RedisSaver(ttl=...)` trong `langgraph-checkpoint-redis`).
 
 ---
 
-## 12. Troubleshooting
+## 13. Troubleshooting
 
 ### Database connection error
 
@@ -561,6 +575,21 @@ Ensure Postgres is running:
 docker compose up postgres -d
 ```
 
+### Redis connection error
+
+```
+redis.exceptions.ConnectionError: Error connecting to redis://localhost:6379
+```
+
+Backend sẽ tự fallback sang MemorySaver, nhưng state sẽ mất khi restart. Để fix:
+
+```bash
+docker compose up redis -d
+# Kiểm tra: redis-cli ping → PONG
+```
+
+> **Lưu ý:** Dùng `redis/redis-stack-server` (không phải `redis:7-alpine`), vì `langgraph-checkpoint-redis` cần RedisJSON + RediSearch.
+
 ### Ollama unreachable
 
 ```
@@ -572,7 +601,6 @@ Start Ollama and pull models:
 ```bash
 ollama serve
 ollama pull qwen2.5:7b
-ollama pull llava:7b
 ```
 
 ### Port in use
@@ -583,10 +611,10 @@ Change `docker-compose.yml` or:
 uvicorn app.main:app --port 8001
 ```
 
-### Reset database volumes
+### Reset all volumes
 
 ```bash
-docker compose down -v   # removes volumes
+docker compose down -v   # removes volumes (PostgreSQL data + Redis data)
 docker compose up postgres redis -d
 ```
 

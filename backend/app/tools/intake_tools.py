@@ -16,18 +16,19 @@ async def save_consult_intake(
     session_id: int,
     symptoms: str,
     ai_diagnosis: str,
-    needs_visit: bool,
-    dental_case_code: str | None = None,
+    category_code: str | None = None,
+    needs_visit: bool = True,
 ) -> str:
     """
-    Save a booking consult intake (symptoms text + intake summary fields) to the database.
+    Save a booking consult intake (symptoms + intake summary) to the database.
 
     Args:
         patient_user_id: Patient user id.
         session_id: Chat session id.
-        symptoms: Free-text symptom / reason-for-visit summary.
-        ai_diagnosis: Short intake note (must not be used as medical advice).
-        needs_visit: Whether the flow recommends an in-person visit.
+        symptoms: Free-text symptom summary.
+        ai_diagnosis: Short intake note (not medical advice).
+        category_code: CAT-01 | CAT-02 | CAT-03 | CAT-04 | CAT-05.
+        needs_visit: DB compat — luôn True (mọi BN đều hướng tới booking).
 
     Returns:
         JSON string containing the new intake id.
@@ -36,10 +37,8 @@ async def save_consult_intake(
     from app.models.reservation import BookingConsultIntake
 
     logger.info(
-        "[tool] save_consult_intake session_id=%s patient_user_id=%s needs_visit=%s",
-        session_id,
-        patient_user_id,
-        needs_visit,
+        "[tool] save_consult_intake session_id=%s patient=%s needs_visit=%s category=%s",
+        session_id, patient_user_id, needs_visit, category_code,
     )
     async with async_session_factory() as db:
         intake = BookingConsultIntake(
@@ -48,7 +47,7 @@ async def save_consult_intake(
             symptoms=symptoms,
             ai_diagnosis=ai_diagnosis,
             needs_visit=needs_visit,
-            dental_case_code=dental_case_code,
+            dental_case_code=category_code,
         )
         db.add(intake)
         await db.commit()

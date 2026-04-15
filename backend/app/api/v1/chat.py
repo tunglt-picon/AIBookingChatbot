@@ -399,11 +399,11 @@ async def _stream_agent_response(
             )
 
         logger.info(
-            "[chat][graph] final_state session_id=%s intent=%r needs_visit=%s "
+            "[chat][graph] final_state session_id=%s intent=%r specialist_concluded=%s "
             "intake_id=%s booking_confirmed=%s reservation_id=%s follow_up_count=%s",
             session_id,
             vals.get("intent"),
-            vals.get("needs_visit"),
+            vals.get("specialist_concluded"),
             vals.get("intake_id"),
             vals.get("booking_confirmed"),
             vals.get("reservation_id"),
@@ -419,8 +419,8 @@ async def _stream_agent_response(
         if vals.get("intake_id"):
             intake_info = {
                 "intake_id": vals.get("intake_id"),
-                "needs_visit": vals.get("needs_visit"),
                 "ai_diagnosis": vals.get("ai_diagnosis"),
+                "category_code": vals.get("category_code"),
             }
 
         # ── Persist agent message to DB ────────────────────────────────────

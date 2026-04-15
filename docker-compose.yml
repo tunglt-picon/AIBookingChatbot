@@ -18,15 +18,14 @@ services:
       timeout: 5s
       retries: 5
 
-  # Optional dev cache — backend code does not connect to Redis yet.
+  # Redis Stack: bao gồm RedisJSON + RediSearch (bắt buộc cho langgraph-checkpoint-redis).
   redis:
-    image: redis:7-alpine
+    image: redis/redis-stack-server:latest
     container_name: dental_redis
     ports:
       - "6379:6379"
     volumes:
       - redis_data:/data
-    command: redis-server --appendonly yes
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
@@ -41,14 +40,16 @@ services:
     environment:
       DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-dental_user}:${POSTGRES_PASSWORD:-dental_pass}@postgres:5432/${POSTGRES_DB:-dental_db}
       REDIS_URL: redis://redis:6379
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     ports:
       - "8000:8000"
     volumes:
       - ./backend:/app
       - ./backend/uploads:/app/uploads
-    depends_on:
-      postgres:
-        condition: service_healthy
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 
   langfuse:

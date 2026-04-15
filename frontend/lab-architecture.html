@@ -83,7 +83,7 @@ flowchart TB
     LAB["/api/v1/admin/lab"]
   end
   subgraph agents["LangGraph · app/agents/graph.py"]
-    G["StateGraph + MemorySaver"]
+    G["StateGraph + Redis checkpoint"]
   end
   subgraph data["Dữ liệu"]
     PG[("PostgreSQL")]
@@ -130,7 +130,7 @@ sequenceDiagram
   API-->>U: SSE: status, token, done
       </div>
       <ul class="text-xs text-slate-500 space-y-1 list-disc pl-5">
-        <li>Checkpoint <code class="text-slate-400">MemorySaver</code>: state graph theo <code class="text-slate-400">thread_id = session_id</code> (mất khi restart server).</li>
+        <li>Checkpoint <code class="text-slate-400">Redis</code> (<code class="text-slate-400">langgraph-checkpoint-redis</code>): state graph theo <code class="text-slate-400">thread_id = session_id</code> — giữ nguyên sau khi restart server.</li>
         <li>Tin nhắn lịch sử chat lưu bảng message; state graph là tầng riêng cho agent.</li>
       </ul>
     </section>
@@ -138,11 +138,11 @@ sequenceDiagram
     <section class="rounded-2xl border border-slate-700/60 bg-slate-800/40 p-4 sm:p-6 space-y-4">
       <h2 class="text-base font-semibold text-white">3. Luồng tư vấn → lịch (happy path)</h2>
       <p class="text-sm text-slate-400 leading-relaxed">
-        Sau khi <code class="text-sky-300">dental_specialist</code> chốt <code class="text-amber-200/90">needs_visit: true</code>, graph nối tiếp các bước sau (không có thêm HTTP ra ngoài).
+        Sau khi <code class="text-sky-300">dental_specialist</code> chốt xong (<code class="text-amber-200/90">specialist_concluded</code>), graph nối tiếp các bước sau (không có thêm HTTP ra ngoài).
       </p>
       <div class="mermaid">
 flowchart LR
-  A[dental_specialist<br/>triệu chứng + dental_case_code] --> B[save_intake<br/>PostgreSQL]
+  A[dental_specialist<br/>triệu chứng + category_code] --> B[save_intake<br/>PostgreSQL]
   B --> C[query_slots<br/>get_mock_schedule]
   C --> D[root_respond<br/>LLM + extra.message_ui]
   D --> E[END]
@@ -165,15 +165,15 @@ flowchart LR
           <tbody class="text-slate-400 divide-y divide-slate-700/50">
             <tr>
               <td class="py-2 pr-3 font-mono text-xs text-sky-300/90">backend/data/mock/lich_trong_tuan_trong_vi.json</td>
-              <td class="py-2">Slot trống theo ngày / mã CAVITY…EMERGENCY — <code class="text-slate-500">get_mock_schedule</code>, <code class="text-slate-500">GET /schedule/*</code></td>
+              <td class="py-2">Slot trống theo ngày / mã CAT-01…CAT-05 — <code class="text-slate-500">get_mock_schedule</code>, <code class="text-slate-500">GET /schedule/*</code></td>
             </tr>
             <tr>
               <td class="py-2 pr-3 font-mono text-xs text-sky-300/90">backend/data/mock/triage_symptom_rubric_vi.json</td>
               <td class="py-2">Rubric triệu chứng ↔ mã khám + ví dụ — nạp vào prompt <code class="text-slate-500">dental_specialist</code></td>
             </tr>
             <tr>
-              <td class="py-2 pr-3 font-mono text-xs text-sky-300/90">backend/data/mock/triage_examples.tsv</td>
-              <td class="py-2">Nguồn TSV tái sinh rubric: <code class="text-slate-500">python scripts/build_triage_symptom_rubric.py</code></td>
+              <td class="py-2 pr-3 font-mono text-xs text-sky-300/90">backend/data/mock/phong_kham_danh_muc_va_lich_vi.json</td>
+              <td class="py-2">Metadata danh mục khám (5 loại CAT-01→05) + từ khóa gợi ý</td>
             </tr>
             <tr>
               <td class="py-2 pr-3 font-mono text-xs text-sky-300/90">app/domain/dental_cases.py</td>
@@ -189,7 +189,7 @@ flowchart LR
       <ul class="text-sm text-slate-400 space-y-2 list-disc pl-5 leading-relaxed">
         <li><code class="text-amber-200/80">patient_users</code> — tài khoản BN, JWT <code class="text-slate-500">sub</code></li>
         <li><code class="text-amber-200/80">booking_chat_sessions</code> + <code class="text-amber-200/80">booking_chat_messages</code> — hội thoại UI</li>
-        <li><code class="text-amber-200/80">booking_consult_intakes</code> — tóm tắt triệu chứng sau specialist, <code class="text-slate-500">dental_case_code</code></li>
+        <li><code class="text-amber-200/80">booking_consult_intakes</code> — tóm tắt triệu chứng sau specialist, <code class="text-slate-500">category_code</code></li>
         <li><code class="text-amber-200/80">reservations</code> — lịch đã đặt, liên kết intake</li>
       </ul>
     </section>
@@ -209,7 +209,7 @@ flowchart LR
     <section class="rounded-2xl border border-cyan-500/20 bg-cyan-950/15 p-4 sm:p-5">
       <h2 class="text-sm font-semibold text-cyan-200 mb-2">Ghi chú vận hành</h2>
       <ul class="text-xs text-slate-400 space-y-1.5 list-disc pl-4 leading-relaxed">
-        <li>Service <strong class="text-slate-300">Redis</strong> trong Docker Compose là <strong class="text-slate-300">tùy chọn</strong> — backend hiện không import client Redis trong code.</li>
+        <li>Service <strong class="text-slate-300">Redis Stack</strong> trong Docker Compose là <strong class="text-slate-300">bắt buộc</strong> — backend dùng <code class="text-slate-400">langgraph-checkpoint-redis</code> để persist graph state. Nếu Redis không sẵn sàng, fallback <code class="text-slate-400">MemorySaver</code> (mất state khi restart).</li>
         <li>Upload ảnh / Pillow: cấu hình <code class="text-slate-500">UPLOAD_DIR</code> còn trong settings; API chat hiện chỉ nhận <strong class="text-slate-300">văn bản</strong> (Form field <code class="text-slate-500">message</code>).</li>
       </ul>
     </section>

@@ -1,8 +1,8 @@
 {
   "meta": {
     "ngon_ngu": "vi-VN",
-    "phien_ban": "1.0",
-    "mo_ta": "Câu hỏi tiếp nhận chung & tiêu chuẩn, ví dụ trả lời, ánh xạ gợi ý sang danh mục (mock huấn luyện / test)."
+    "phien_ban": "2.0",
+    "mo_ta": "Câu hỏi tiếp nhận chung & sàng lọc, ánh xạ gợi ý → 5 category (CAT-01 → CAT-05)."
   },
   "cau_hoi_chung": [
     {
@@ -12,156 +12,37 @@
       "goi_y_tra_loi_mau": [
         "Tôi bị đau răng hàm sau mấy hôm nay",
         "Nướu hay chảy máu khi đánh răng",
-        "Lâu rồi chưa cạo vôi, muốn vệ sinh",
-        "Mất một răng, muốn tư vấn trồng lại",
-        "Chỉ muốn khám định kỳ, không đau"
+        "Bé nhà tôi bị sún răng",
+        "Muốn khám định kỳ, lâu rồi chưa đi",
+        "Răng khôn đang sưng đau"
       ]
     },
     {
       "id": "Q002",
       "noi_dung": "Triệu chứng bắt đầu từ khi nào? Có đột ngột hay tăng dần?",
-      "muc_dich": "Thời gian — phân biệt cấp tính (EMERGENCY) vs mạn.",
-      "goi_y_tra_loi_mau": [
-        "Từ sáng nay đau dữ lắm",
-        "Cả tuần nay âm ỉ",
-        "Sau khi ăn đồ cứng hôm qua",
-        "Lâu rồi nhưng giờ mới đau nhiều hơn"
-      ]
+      "muc_dich": "Thời gian — phân biệt cấp tính vs mạn."
     },
     {
       "id": "Q003",
       "noi_dung": "Mức đau hiện tại khoảng mấy trên thang 10? (0 = không đau, 10 = không chịu được)",
-      "muc_dich": "Đánh giá mức độ — EMERGENCY nếu 8–10 kèm sưng.",
-      "goi_y_tra_loi_mau": ["2–3", "5–6", "8–9", "10, không chịu nổi"]
+      "muc_dich": "Đánh giá mức độ — mức 7+ kèm sưng gợi ý CAT-02/03."
     },
     {
       "id": "Q004",
       "noi_dung": "Có bị sưng má, sưng nướu, sốt hoặc khó há miệng không?",
-      "muc_dich": "Sàng lọc nhiễm trùng / áp xe — EMERGENCY hoặc chuyển tuyến.",
-      "goi_y_tra_loi_mau": [
-        "Có sưng bên má trái",
-        "Không sưng, chỉ ê khi uống lạnh",
-        "Có mủ ở nướu",
-        "Không có"
-      ]
+      "muc_dich": "Sàng lọc nhiễm trùng / áp xe — gợi ý CAT-02 hoặc CAT-03."
     },
     {
       "id": "Q005",
-      "noi_dung": "Bạn có đang mang thai, bệnh tim mạch, tiểu đường hoặc dùng thuốc chống đông máu không? (chỉ để sắp xếp lịch an toàn — không thay cho hồ sơ BS)",
-      "muc_dich": "Tiền sử hành chính — mock; thực tế cần form chi tiết.",
-      "goi_y_tra_loi_mau": [
-        "Không, tôi khỏe bình thường",
-        "Có tiểu đường",
-        "Đang uống aspirin mỗi ngày",
-        "Mang thai 12 tuần"
-      ]
+      "noi_dung": "Đây là cho người lớn hay cho trẻ em? Bé bao nhiêu tuổi?",
+      "muc_dich": "Nếu trẻ em → CAT-04."
     }
   ],
-  "cau_hoi_tieu_chuan_theo_vong": [
-    {
-      "vong": 1,
-      "cau_hoi": "Ngoài vấn đề vừa nói, bạn còn triệu chứng nào khác ở răng miệng không?",
-      "muc_dich": "Bắt buộc hỏi thêm trước khi chốt (tránh bỏ sót).",
-      "cau_tra_loi_ket_thuc": [
-        "Không còn",
-        "Hết rồi",
-        "Chỉ vậy thôi",
-        "Không có triệu chứng nào nữa",
-        "Đủ rồi"
-      ]
-    },
-    {
-      "vong": 2,
-      "cau_hoi": "Bạn có muốn hẹn vào ngày hoặc khung giờ nào thuận tiện không? (Chúng tôi sẽ đối chiếu với lịch trống theo loại hẹn.)",
-      "muc_dich": "Thu thập mong muốn lịch sau khi đã có danh mục.",
-      "goi_y_tra_loi_mau": [
-        "Ngày mai buổi chiều",
-        "Thứ 6 tuần này",
-        "Sáng nào cũng được"
-      ]
-    }
-  ],
-  "cau_hoi_sang_loc_chuyen_tuyen": [
-    {
-      "id": "S001",
-      "noi_dung": "Bạn có bị tai nạn vùng mặt, nghi gãy xương hàm, hoặc khối sưng lớn tăng nhanh trong vài ngày không?",
-      "neu_co": "Dừng đặt lịch điều trị tại phòng — áp dụng REFERRAL_SURGERY_HOSPITAL hoặc REFERRAL_ONCOLOGY_OR_ADVANCED.",
-      "goi_y_tra_loi": ["Không", "Có, tôi bị té xe vào hàm", "Có khối cứng ở lưỡi"]
-    }
-  ],
-  "bang_anh_xa_tu_khoa_sang_danh_muc": [
-    {
-      "tu_khoa": ["sâu", "trám", "lỗ đen", "khoằm", "một răng đau"],
-      "danh_muc_goi_y": "CAVITY",
-      "do_tin_cay": "cao"
-    },
-    {
-      "tu_khoa": ["implant", "trồng răng", "mất răng", "cấy"],
-      "danh_muc_goi_y": "IMPLANT",
-      "do_tin_cay": "cao"
-    },
-    {
-      "tu_khoa": ["nướu", "chảy máu", "viêm", "hôi miệng", "nha chu"],
-      "danh_muc_goi_y": "GINGIVITIS",
-      "do_tin_cay": "trung_binh"
-    },
-    {
-      "tu_khoa": ["cạo vôi", "vệ sinh", "cao răng", "định kỳ", "lấy vôi"],
-      "danh_muc_goi_y": "SCALING",
-      "do_tin_cay": "cao"
-    },
-    {
-      "tu_khoa": ["đau dữ", "sưng mặt", "áp xe", "mủ", "cấp cứu", "gãy răng"],
-      "danh_muc_goi_y": "EMERGENCY",
-      "do_tin_cay": "cao"
-    },
-    {
-      "tu_khoa": ["không rõ", "khám lần đầu", "tổng quát"],
-      "danh_muc_goi_y": "GENERAL",
-      "do_tin_cay": "trung_binh"
-    }
-  ],
-  "bang_anh_xa_tu_choi_kham": [
-    {
-      "tu_khoa": ["gãy hàm", "tai nạn hàm", "phẫu thuật xương"],
-      "danh_muc_tu_choi": "REFERRAL_SURGERY_HOSPITAL"
-    },
-    {
-      "tu_khoa": ["ung thư", "u ác", "loét không lành", "khối u lưỡi"],
-      "danh_muc_tu_choi": "REFERRAL_ONCOLOGY_OR_ADVANCED"
-    }
-  ],
-  "mau_hoi_thoai_day_du": [
-    {
-      "ten": "BN cạo vôi — kết thúc gọn",
-      "luot_bn": [
-        "Tôi muốn đặt lịch khám ngày mai",
-        "Lâu ngày chưa vệ sinh, muốn cạo vôi",
-        "Hết rồi, không còn triệu chứng gì"
-      ],
-      "ket_qua_xep_loai_mong_doi": "SCALING"
-    },
-    {
-      "ten": "BN đau cấp",
-      "luot_bn": [
-        "Đau răng từ tối qua, uống thuốc không đỡ",
-        "Khoảng 9/10, sưng má luôn"
-      ],
-      "ket_qua_xep_loai_mong_doi": "EMERGENCY"
-    },
-    {
-      "ten": "Cần chuyển tuyến — gãy hàm (mock)",
-      "luot_bn": [
-        "Tôi bị té xe, nghi gãy xương hàm, sưng to",
-        "Đau không há miệng được"
-      ],
-      "ket_qua_xep_loai_mong_doi": "REFERRAL_SURGERY_HOSPITAL",
-      "ghi_chu": "Không tạo lịch khám điều trị tại PK."
-    }
-  ],
-  "goi_y_system_prompt_ngan": [
-    "Luôn hỏi từng bước; khi BN nói 'hết triệu chứng' thì chốt phân loại.",
-    "Nếu khớp REFERRAL_* → thông báo chuyển BV, không hứa lịch điều trị PK.",
-    "Ưu tiên an toàn: đau + sưng + sốt → xử lý cấp hoặc chuyển tuyến."
-  ]
+  "anh_xa_tu_khoa_category": {
+    "CAT-01": ["sâu răng", "trám", "lỗ sâu", "ê buốt nhẹ", "mẻ răng", "rớt trám", "mòn cổ", "chấm đen", "vệt đen", "nứt men", "thưa kẽ"],
+    "CAT-02": ["đau dội", "nhức đêm", "đau tự phát", "sưng mủ", "áp xe", "tủy", "lỗ sâu to", "đau hàng giờ", "thuốc không hết đau", "nhức giật", "trồi cao"],
+    "CAT-03": ["răng khôn", "nhổ", "số 8", "sưng mặt", "há miệng khó", "lung lay", "gãy răng", "cắt lợi trùm", "tiểu phẫu", "cắt chóp", "chân răng sót"],
+    "CAT-04": ["bé", "trẻ", "con", "cháu", "răng sữa", "sún", "mọc lẫy", "fluoride", "hố rãnh", "tủy sữa"],
+    "CAT-05": ["khám định kỳ", "cạo vôi", "X-quang", "tổng quát", "niềng", "implant", "sứ", "giấy khám", "chảy máu nướu", "hôi miệng", "ê rần"]
+  }
 }

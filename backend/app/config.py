@@ -24,7 +24,7 @@ class Settings(BaseSettings):
     # ── Database ─────────────────────────────────
     DATABASE_URL: str = "postgresql+asyncpg://dental_user:dental_pass@localhost:5432/dental_db"
 
-    # ── Redis (tùy chọn — stack hiện không import Redis trong code; Compose vẫn có service redis để dev tay) ──
+    # ── Redis (LangGraph checkpoint persistence) ──
     REDIS_URL: str = "redis://localhost:6379"
 
     # ── LLM Configuration ────────────────────────

@@ -1,8 +1,8 @@
 """
-Đọc dữ liệu lịch trống mock cả tuần từ JSON (đồng bộ với dental_cases).
+Đọc dữ liệu lịch trống mock cả tuần từ JSON.
 
 File: backend/data/mock/lich_trong_tuan_trong_vi.json
-Tạo lại: python scripts/generate_lich_trong_tuan_json.py
+Tạo lại: cd backend && python3 scripts/generate_lich_trong_tuan_json.py
 """
 
 from __future__ import annotations
@@ -17,7 +17,6 @@ logger = logging.getLogger(__name__)
 
 
 def _json_path() -> Path:
-    # .../backend/app/services/ -> parents[2] == backend
     return Path(__file__).resolve().parents[2] / "data" / "mock" / "lich_trong_tuan_trong_vi.json"
 
 
@@ -37,7 +36,6 @@ def get_mock_week_meta() -> dict[str, Any]:
 
 
 def list_mock_date_isos() -> list[str]:
-    """Các YYYY-MM-DD có trong file mock (theo thứ tự file)."""
     out: list[str] = []
     for day in load_week_mock_raw().get("ngay") or []:
         di = day.get("date_iso")
@@ -46,14 +44,10 @@ def list_mock_date_isos() -> list[str]:
     return out
 
 
-def first_mock_date_iso_for_case(dental_case_code: Optional[str]) -> str:
-    """
-    Ngày đầu tiên trong file mock có ít nhất một slot cho mã loại khám
-    (hoặc ngày đầu tuần trong meta nếu không có slot nào).
-    """
-    from app.domain.dental_cases import normalize_case_code
+def first_mock_date_iso_for_category(category_code: Optional[str]) -> str:
+    from app.domain.dental_cases import normalize_category_code
 
-    code = normalize_case_code(dental_case_code)
+    code = normalize_category_code(category_code)
     data = load_week_mock_raw()
     for day in data.get("ngay") or []:
         di = (day.get("date_iso") or "")[:10]
@@ -71,12 +65,10 @@ def first_mock_date_iso_for_case(dental_case_code: Optional[str]) -> str:
         if isinstance(raw, str) and len(raw) >= 10:
             return raw.strip()[:10]
     from datetime import datetime, timezone
-
     return datetime.now(timezone.utc).date().isoformat()
 
 
 def mock_schedule_summary_for_lab() -> dict[str, Any]:
-    """Tóm tắt file mock cho UI lab (meta + số slot theo ngày / mã)."""
     data = load_week_mock_raw()
     meta = dict(data.get("meta") or {})
     days_out: list[dict[str, Any]] = []
@@ -100,15 +92,14 @@ def mock_schedule_summary_for_lab() -> dict[str, Any]:
     }
 
 
-def get_mock_slots_for_date_and_case(
+def get_mock_slots_for_date_and_category(
     date_iso: str,
-    dental_case_code: Optional[str],
+    category_code: Optional[str],
     limit: int = 12,
 ) -> list[dict[str, Any]]:
-    """Trả về slot từ file mock cho YYYY-MM-DD + mã loại khám (rỗng nếu không có ngày)."""
-    from app.domain.dental_cases import normalize_case_code
+    from app.domain.dental_cases import normalize_category_code
 
-    code = normalize_case_code(dental_case_code)
+    code = normalize_category_code(category_code)
     key = date_iso.strip()[:10]
     for day in load_week_mock_raw().get("ngay") or []:
         if day.get("date_iso") == key:
@@ -118,14 +109,10 @@ def get_mock_slots_for_date_and_case(
 
 
 def build_week_availability_payload(
-    dental_case_code: Optional[str] = None,
+    category_code: Optional[str] = None,
     week_start_iso: Optional[str] = None,
 ) -> dict[str, Any]:
-    """
-    Payload cho tool/API: cả tuần hoặc lọc một loại khám.
-    week_start_iso phải khớp meta.tuan_bat_dau_iso nếu truyền vào.
-    """
-    from app.domain.dental_cases import normalize_case_code
+    from app.domain.dental_cases import normalize_category_code
 
     data = load_week_mock_raw()
     meta = dict(data.get("meta") or {})
@@ -141,7 +128,7 @@ def build_week_availability_payload(
             "ngay": [],
         }
 
-    code_filter = normalize_case_code(dental_case_code) if dental_case_code else None
+    code_filter = normalize_category_code(category_code) if category_code else None
     days_out: list[dict[str, Any]] = []
 
     for day in data.get("ngay") or []:
@@ -153,7 +140,7 @@ def build_week_availability_payload(
         by_case = day.get("theo_loai_kham") or {}
         if code_filter:
             entry["slots"] = by_case.get(code_filter) or []
-            entry["dental_case_code"] = code_filter
+            entry["category_code"] = code_filter
         else:
             entry["theo_loai_kham"] = by_case
         days_out.append(entry)
@@ -166,5 +153,4 @@ def build_week_availability_payload(
 
 
 def invalidate_week_mock_cache() -> None:
-    """Sau khi ghi đè file JSON (test)."""
     load_week_mock_raw.cache_clear()
