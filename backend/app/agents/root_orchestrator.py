@@ -148,14 +148,6 @@ def _booking_date_iso_from_state(state: AgentState) -> str | None:
     return None
 
 
-def _default_next_weekday_iso() -> str:
-    from datetime import datetime, timedelta, timezone
-    d = datetime.now(timezone.utc).date() + timedelta(days=1)
-    while d.weekday() >= 5:
-        d += timedelta(days=1)
-    return d.isoformat()
-
-
 def _date_iso_from_slot_datetime(datetime_str: str | None) -> str:
     from datetime import datetime
     if not datetime_str or not isinstance(datetime_str, str):
@@ -165,6 +157,11 @@ def _date_iso_from_slot_datetime(datetime_str: str | None) -> str:
         return datetime.fromisoformat(normalized).date().isoformat()
     except ValueError:
         return datetime_str[:10] if len(datetime_str) >= 10 else ""
+
+
+def _build_day_chips_payload() -> dict[str, Any]:
+    labels = ["Thứ 2", "Thứ 3", "Thứ 4", "Thứ 5", "Thứ 6", "Ngày mai"]
+    return {"template": "day_chips", "days": labels}
 
 
 # ── Intent Classification ─────────────────────────────────────────────────────
@@ -292,6 +289,21 @@ async def root_respond_node(state: AgentState, config: RunnableConfig) -> dict:
     llm = get_root_llm()
     callbacks = get_langfuse_callback(config)
 
+    # Sau khi đã triage xong, luôn hỏi ngày rảnh trước (không tự chốt ngày mặc định).
+    if state.get("triage_complete") and not state.get("booking_confirmed") and not state.get("available_slots"):
+        msg = (
+            "Mình đã ghi nhận nhóm khám phù hợp. "
+            "Bạn vui lòng cho mình biết **bạn rảnh vào thứ mấy** "
+            "(có thể chọn **1 hoặc nhiều ngày**, ví dụ: *Thứ 3, Thứ 5*)."
+        )
+        return {
+            "messages": [AIMessage(content=msg, name="root_agent")],
+            "last_agent_message": msg,
+            "current_agent": "root",
+            "skip_root_respond": True,
+            "extra": {"message_ui": _build_day_chips_payload()},
+        }
+
     extra_context = ""
     if state.get("category_code"):
         from app.domain.dental_cases import category_label_vi
@@ -375,6 +387,12 @@ async def booking_prepare_node(state: AgentState, config: RunnableConfig) -> dic
 
     if not state.get("available_slots"):
         date_hint = infer_date_str_from_user_text(user_text)
+        if not date_hint:
+            logger.info(
+                "[agent:root] booking_prepare waiting for day preference session_id=%s",
+                state["session_id"],
+            )
+            return updates
         slot_kw: dict = {"category_code": state.get("category_code")}
         if date_hint:
             slot_kw["date_str"] = date_hint
@@ -400,20 +418,9 @@ async def booking_prepare_node(state: AgentState, config: RunnableConfig) -> dic
 # ── Query Available Slots ────────────────────────────────────────────────────
 
 async def query_slots_node(state: AgentState, config: RunnableConfig) -> dict:
-    from app.tools.schedule_tools import get_mock_schedule
-
-    logger.info("[agent:root] query_slots_node session_id=%s", state["session_id"])
-    result_json = await get_mock_schedule.ainvoke({
-        "scope": "day",
-        "category_code": state.get("category_code"),
-    })
-    data = json.loads(result_json)
-    slots = data.get("slots", [])
-    logger.info("[query_slots] found %s slots", len(slots))
-    out: dict = {"available_slots": slots}
-    if data.get("date"):
-        out["pending_booking_date_iso"] = data["date"]
-    return out
+    logger.info("[agent:root] query_slots_node session_id=%s -> defer until patient picks day", state["session_id"])
+    # Không tự query ngày mặc định ngay sau triage để tránh ép về Thứ 2.
+    return {"available_slots": [], "pending_booking_date_iso": None}
 
 
 # ── Confirm Booking ───────────────────────────────────────────────────────────
@@ -462,7 +469,12 @@ async def _finalize_booking_from_pending(state: AgentState, slot: dict) -> dict:
 
 
 async def confirm_booking_node(state: AgentState, config: RunnableConfig) -> dict:
-    from app.tools.schedule_tools import infer_date_str_from_user_text, resolve_requested_slot
+    from app.tools.schedule_tools import (
+        get_mock_schedule,
+        infer_date_str_from_user_text,
+        infer_date_strs_from_user_text,
+        resolve_requested_slot,
+    )
 
     user_text = _last_human_text(state)
     pending = state.get("pending_confirmation_slot")
@@ -490,13 +502,64 @@ async def confirm_booking_node(state: AgentState, config: RunnableConfig) -> dic
 
     # Parse requested time
     hm = _parse_first_time_hm(user_text)
+    date_hints = infer_date_strs_from_user_text(user_text)
     date_iso = _booking_date_iso_from_state(state)
     if not date_iso:
         date_iso = infer_date_str_from_user_text(user_text)
-    if not date_iso:
-        date_iso = _default_next_weekday_iso()
 
     if hm is None:
+        candidate_dates = date_hints or ([date_iso] if date_iso else [])
+        if not candidate_dates:
+            msg = (
+                "Trước khi chọn giờ, bạn vui lòng cho mình biết **bạn rảnh vào thứ mấy** "
+                "(ví dụ: *Thứ 3* hoặc *Thứ 3, Thứ 5*)."
+            )
+            return {
+                "messages": [AIMessage(content=msg, name="root_agent")],
+                "last_agent_message": msg,
+                "current_agent": "root",
+                "skip_root_respond": True,
+                "extra": {"message_ui": _build_day_chips_payload()},
+            }
+
+        all_slots: list[dict] = []
+        for d_iso in candidate_dates:
+            day_json = await get_mock_schedule.ainvoke({
+                "scope": "day",
+                "date_str": d_iso,
+                "category_code": state.get("category_code"),
+            })
+            day_data = json.loads(day_json)
+            day_slots = day_data.get("slots", [])
+            all_slots.extend(day_slots[:6])
+
+        if all_slots:
+            all_slots = all_slots[:18]
+            day_labels = sorted({_slot_display_date_part(s.get("display", "")) for s in all_slots if s.get("display")})
+            day_desc = ", ".join([d for d in day_labels if d]) or "các ngày bạn đã chọn"
+            msg = (
+                f"Mình đã kiểm tra lịch cho **{day_desc}**. "
+                "Bạn chọn **khung giờ** phù hợp trong các gợi ý bên dưới nhé."
+            )
+            chip_labels = [s.get("display", "").replace(" – ", " ") for s in all_slots if s.get("display")]
+            chip_labels = [c.strip() for c in chip_labels if c.strip()]
+            return {
+                "available_slots": all_slots,
+                "pending_booking_date_iso": None,
+                "pending_confirmation_slot": None,
+                "messages": [AIMessage(content=msg, name="root_agent")],
+                "last_agent_message": msg,
+                "current_agent": "root",
+                "skip_root_respond": True,
+                "extra": {
+                    "message_ui": {
+                        "template": "datetime_chips",
+                        "options": chip_labels[:12],
+                        "category_code": state.get("category_code"),
+                    },
+                },
+            }
+
         slots = state.get("available_slots") or []
         if slots:
             d0 = slots[0].get("display", "")
@@ -524,13 +587,23 @@ async def confirm_booking_node(state: AgentState, config: RunnableConfig) -> dic
             }
 
         logger.warning("[agent:root] confirm_booking no time and no slots session_id=%s", state["session_id"])
-        msg = "Bạn vui lòng cho mình biết **ngày** và **giờ** khám mong muốn (ví dụ: thứ 4, lúc 14:00)."
+        msg = "Mình chưa tìm được lịch phù hợp. Bạn vui lòng chọn lại **thứ bạn rảnh** nhé."
         return {
             "messages": [AIMessage(content=msg, name="root_agent")],
             "last_agent_message": msg,
             "current_agent": "root",
             "skip_root_respond": True,
-            "extra": {"message_ui": None},
+            "extra": {"message_ui": _build_day_chips_payload()},
+        }
+
+    if hm is not None and not date_iso:
+        msg = "Bạn đã chọn giờ rồi. Mình cần thêm **thứ bạn rảnh** để kiểm tra chính xác lịch trống."
+        return {
+            "messages": [AIMessage(content=msg, name="root_agent")],
+            "last_agent_message": msg,
+            "current_agent": "root",
+            "skip_root_respond": True,
+            "extra": {"message_ui": _build_day_chips_payload()},
         }
 
     hour, minute = hm

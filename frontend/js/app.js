@@ -377,34 +377,38 @@ async function sendMessage(text) {
 
 function appendMessage(msg) {
   const isPatient = msg.sender_type === "PATIENT_USER";
-  const isSpecialist = msg.sender_type === "SPECIALIST_AGENT";
+  const side = isPatient ? "patient" : "assistant";
+  const grouped = isGroupedWithPrevious(side);
 
   const wrapper = document.createElement("div");
   wrapper.className =
-    "msg-enter flex gap-3 " + (isPatient ? "flex-row-reverse" : "flex-row");
+    "msg-enter chat-row flex " +
+    (grouped ? "gap-1.5 " : "gap-3 ") +
+    (isPatient ? "flex-row-reverse" : "flex-row");
+  wrapper.dataset.role = "chat-row";
+  wrapper.dataset.senderSide = side;
+  if (grouped) wrapper.classList.add("chat-row--grouped");
 
   // Avatar
   const avatar = document.createElement("div");
   avatar.className =
-    "flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold";
+    "chat-avatar flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold";
   if (isPatient) {
-    avatar.className += " bg-sky-600 text-white";
-    avatar.textContent = "B";
-  } else if (isSpecialist) {
-    avatar.className += " bg-violet-600 text-white";
-    avatar.textContent = "AI";
+    avatar.className += " chat-avatar--user text-white";
+    avatar.textContent = "BN";
   } else {
-    avatar.className += " bg-emerald-700 text-white";
-    avatar.textContent = "R";
+    avatar.className += " chat-avatar--assistant text-white";
+    avatar.textContent = "SC";
   }
+  if (grouped) avatar.classList.add("chat-avatar--ghost");
 
   // Bubble
   const bubble = document.createElement("div");
   bubble.className =
-    "max-w-[75%] rounded-2xl px-4 py-3 text-sm leading-relaxed " +
+    "chat-bubble max-w-[78%] rounded-2xl px-4 py-3 text-sm leading-relaxed " +
     (isPatient
-      ? "bg-sky-600 text-white rounded-tr-sm"
-      : "bg-slate-700/80 text-slate-100 rounded-tl-sm");
+      ? "chat-bubble--user text-white rounded-tr-sm"
+      : "chat-bubble--assistant text-slate-100 rounded-tl-sm");
 
   if (msg.image_url) {
     const img = document.createElement("img");
@@ -423,6 +427,11 @@ function appendMessage(msg) {
   text.innerHTML = renderRichText(msg.content ?? "");
   bubble.appendChild(text);
 
+  const time = document.createElement("div");
+  time.className = "chat-time";
+  time.textContent = formatMessageTime(msg.created_at);
+  bubble.appendChild(time);
+
   wrapper.appendChild(avatar);
   wrapper.appendChild(bubble);
   $("chat-messages")?.appendChild(wrapper);
@@ -431,22 +440,33 @@ function appendMessage(msg) {
 }
 
 function appendStreamingMessage() {
+  const grouped = isGroupedWithPrevious("assistant");
   const wrapper = document.createElement("div");
-  wrapper.className = "msg-enter flex gap-3 flex-row";
+  wrapper.className = "msg-enter chat-row flex flex-row " + (grouped ? "gap-1.5" : "gap-3");
+  wrapper.dataset.role = "chat-row";
+  wrapper.dataset.senderSide = "assistant";
+  if (grouped) wrapper.classList.add("chat-row--grouped");
 
   const avatar = document.createElement("div");
   avatar.className =
-    "flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold bg-emerald-700 text-white";
-  avatar.textContent = "AI";
+    "chat-avatar chat-avatar--assistant flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white";
+  avatar.textContent = "SC";
+  if (grouped) avatar.classList.add("chat-avatar--ghost");
 
   const bubble = document.createElement("div");
   bubble.className =
-    "max-w-[75%] rounded-2xl rounded-tl-sm px-4 py-3 text-sm leading-relaxed bg-slate-700/80 text-slate-100 stream-cursor";
+    "chat-bubble chat-bubble--assistant max-w-[78%] rounded-2xl rounded-tl-sm px-4 py-3 text-sm leading-relaxed text-slate-100 stream-cursor";
   bubble.dataset.rawText = "";
+  bubble.dataset.createdAt = new Date().toISOString();
 
   const textDiv = document.createElement("div");
   textDiv.className = "message-rich-text";
   bubble.appendChild(textDiv);
+
+  const time = document.createElement("div");
+  time.className = "chat-time";
+  time.textContent = formatMessageTime(bubble.dataset.createdAt);
+  bubble.appendChild(time);
 
   wrapper.appendChild(avatar);
   wrapper.appendChild(bubble);
@@ -467,6 +487,8 @@ function finaliseStreamingMessage(el) {
     const textDiv = el.querySelector(".message-rich-text");
     if (textDiv) textDiv.innerHTML = renderRichText(el.dataset.rawText);
   }
+  const t = el.querySelector(".chat-time");
+  if (t) t.textContent = formatMessageTime(el.dataset.createdAt || new Date().toISOString());
 }
 
 function appendBookingConfirmation(booking) {
@@ -480,15 +502,15 @@ function appendBookingConfirmation(booking) {
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
           d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
       </svg>
-      <span class="font-semibold text-cyan-400">Booking confirmed</span>
+      <span class="font-semibold text-cyan-300">Đặt lịch thành công</span>
     </div>
     <div class="text-slate-300 space-y-1">
-      <p><span class="text-slate-400">Reference:</span>
+      <p><span class="text-slate-400">Mã lịch hẹn:</span>
          <span class="font-mono text-white">#${booking.reservation_id}</span></p>
-      <p><span class="text-slate-400">Appointment:</span>
+      <p><span class="text-slate-400">Thời gian:</span>
          <span class="text-white">${booking.selected_slot ?? "—"}</span></p>
     </div>
-    <p class="mt-2 text-xs text-slate-500">Please arrive 10 minutes early. Thank you.</p>`;
+    <p class="mt-2 text-xs text-slate-500">Bạn nên đến sớm 10 phút để làm thủ tục nhanh hơn.</p>`;
   container.appendChild(card);
 }
 
@@ -500,8 +522,8 @@ function showTypingIndicator(label = "Working…") {
 
   wrapper.innerHTML = `
     <div class="flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center
-                text-xs font-bold bg-emerald-700 text-white">AI</div>
-    <div class="bg-slate-700/80 rounded-2xl rounded-tl-sm px-4 py-3 text-sm">
+                text-xs font-bold chat-avatar chat-avatar--assistant text-white">SC</div>
+    <div class="chat-bubble chat-bubble--assistant rounded-2xl rounded-tl-sm px-4 py-3 text-sm">
       <span class="typing-label text-slate-400 text-xs status-pulse mr-2">${label}</span>
       <span class="typing-dot"></span>
       <span class="typing-dot"></span>
@@ -531,6 +553,20 @@ function clearChat() {
       child.remove();
     }
   });
+}
+
+function getLastChatRow() {
+  const container = $("chat-messages");
+  if (!container) return null;
+  const rows = container.querySelectorAll(".chat-row[data-role='chat-row']");
+  if (!rows.length) return null;
+  return rows[rows.length - 1];
+}
+
+function isGroupedWithPrevious(side) {
+  const last = getLastChatRow();
+  if (!last) return false;
+  return last.dataset.senderSide === side;
 }
 
 function scrollToBottom() {
@@ -598,6 +634,13 @@ function formatSessionLabel(session) {
 
 function formatSessionTime(createdAt) {
   const dt = new Date(createdAt);
+  return dt.toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" });
+}
+
+function formatMessageTime(createdAt) {
+  if (!createdAt) return formatSessionTime(new Date().toISOString());
+  const dt = new Date(createdAt);
+  if (Number.isNaN(dt.getTime())) return "";
   return dt.toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" });
 }
 
@@ -814,7 +857,47 @@ function injectAssistantMessageUi(bubbleEl, ui) {
   const root = document.createElement("div");
   root.className = "msg-ui-root mt-3 pt-3 border-t border-slate-600/60";
 
-  if (ui.template === "time_chips" && Array.isArray(ui.times)) {
+  if (ui.template === "day_chips" && Array.isArray(ui.days)) {
+    const labels = ui.days.map((t) => String(t).trim()).filter(Boolean);
+    if (labels.length === 0) return;
+    const cap = document.createElement("p");
+    cap.className = "text-xs text-slate-400 mb-2";
+    cap.textContent = "Chọn ngày bạn rảnh";
+    root.appendChild(cap);
+    const row = document.createElement("div");
+    row.className = "flex flex-wrap gap-2 msg-ui-chips";
+    labels.forEach((label) => {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "slot-chip-btn";
+      btn.textContent = label;
+      btn.addEventListener("click", () => {
+        sendQuickReply(`Tôi rảnh ${label}`);
+      });
+      row.appendChild(btn);
+    });
+    root.appendChild(row);
+  } else if (ui.template === "datetime_chips" && Array.isArray(ui.options)) {
+    const labels = ui.options.map((t) => String(t).trim()).filter(Boolean);
+    if (labels.length === 0) return;
+    const cap = document.createElement("p");
+    cap.className = "text-xs text-slate-400 mb-2";
+    cap.textContent = "Chọn khung giờ phù hợp";
+    root.appendChild(cap);
+    const row = document.createElement("div");
+    row.className = "flex flex-wrap gap-2 msg-ui-chips";
+    labels.forEach((label) => {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "slot-chip-btn";
+      btn.textContent = label;
+      btn.addEventListener("click", () => {
+        sendQuickReply(`Tôi muốn khám ${label}`);
+      });
+      row.appendChild(btn);
+    });
+    root.appendChild(row);
+  } else if (ui.template === "time_chips" && Array.isArray(ui.times)) {
     if (ui.category_code) {
       bubbleEl.dataset.confirmCategoryCode = String(ui.category_code).trim();
     }

@@ -234,7 +234,7 @@ async def _stream_agent_response(
     """
     from langchain_core.messages import HumanMessage
     from app.agents.graph import get_graph
-    graph = get_graph()
+    graph = await get_graph()
     thread_config = {"configurable": {"thread_id": str(session_id)}}
 
     # Only merge fields that must change this turn. Omit the rest so the checkpointer

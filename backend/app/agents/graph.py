@@ -40,8 +40,8 @@ State persistence: Redis (langgraph-checkpoint-redis).
   - Fallback: MemorySaver nếu Redis không kết nối được.
 """
 
+import asyncio
 import logging
-from functools import lru_cache
 
 from langgraph.graph import END, START, StateGraph
 
@@ -158,20 +158,20 @@ def _build_graph() -> StateGraph:
     return builder
 
 
-def _create_checkpointer():
-    """Tạo Redis checkpointer; fallback MemorySaver nếu Redis không khả dụng."""
+async def _create_checkpointer():
+    """Tạo async Redis checkpointer; fallback MemorySaver nếu Redis không khả dụng."""
     from app.config import settings
 
     try:
-        from langgraph.checkpoint.redis import RedisSaver
+        from langgraph.checkpoint.redis.aio import AsyncRedisSaver
 
-        checkpointer = RedisSaver(redis_url=settings.REDIS_URL)
-        checkpointer.setup()
-        logger.info("[graph] Redis checkpointer ready (%s)", settings.REDIS_URL)
+        checkpointer = AsyncRedisSaver(redis_url=settings.REDIS_URL)
+        await checkpointer.asetup()
+        logger.info("[graph] Async Redis checkpointer ready (%s)", settings.REDIS_URL)
         return checkpointer
     except Exception as exc:
         logger.warning(
-            "[graph] Redis checkpointer failed (%s): %s — falling back to MemorySaver",
+            "[graph] Async Redis checkpointer failed (%s): %s — falling back to MemorySaver",
             settings.REDIS_URL,
             exc,
         )
@@ -179,10 +179,20 @@ def _create_checkpointer():
         return MemorySaver()
 
 
-@lru_cache(maxsize=1)
-def get_graph():
-    """Build and compile the graph (singleton per process)."""
-    checkpointer = _create_checkpointer()
-    graph = _build_graph().compile(checkpointer=checkpointer)
-    logger.info("LangGraph compiled successfully")
-    return graph
+_GRAPH = None
+_GRAPH_LOCK = asyncio.Lock()
+
+
+async def get_graph():
+    """Build and compile the graph (async-safe singleton per process)."""
+    global _GRAPH
+    if _GRAPH is not None:
+        return _GRAPH
+
+    async with _GRAPH_LOCK:
+        if _GRAPH is not None:
+            return _GRAPH
+        checkpointer = await _create_checkpointer()
+        _GRAPH = _build_graph().compile(checkpointer=checkpointer)
+        logger.info("LangGraph compiled successfully")
+        return _GRAPH

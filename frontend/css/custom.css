@@ -32,11 +32,106 @@
 #chat-messages::-webkit-scrollbar-track { background: transparent; }
 #chat-messages::-webkit-scrollbar-thumb { background: #334155; border-radius: 10px; }
 
+/* Chat surface polish */
+#chat-messages {
+  background:
+    radial-gradient(circle at 12% 8%, rgba(56, 189, 248, 0.1) 0, rgba(56, 189, 248, 0) 34%),
+    radial-gradient(circle at 88% 14%, rgba(99, 102, 241, 0.1) 0, rgba(99, 102, 241, 0) 36%),
+    linear-gradient(180deg, #0a1224 0%, #0b1328 100%);
+}
+
+.chat-row {
+  align-items: flex-end;
+}
+.chat-row .chat-avatar {
+  margin-bottom: 0.35rem;
+}
+.chat-row--grouped .chat-avatar {
+  margin-bottom: 0.2rem;
+}
+
+.chat-avatar {
+  box-shadow: 0 6px 16px rgba(2, 6, 23, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  font-size: 0.64rem;
+  letter-spacing: 0.02em;
+}
+.chat-avatar--ghost {
+  visibility: hidden;
+}
+.chat-avatar--assistant {
+  background: linear-gradient(135deg, #14b8a6, #0ea5e9) !important;
+}
+.chat-avatar--user {
+  background: linear-gradient(135deg, #0ea5e9, #6366f1) !important;
+}
+
+.chat-bubble {
+  position: relative;
+  box-shadow: 0 8px 26px rgba(2, 6, 23, 0.28);
+  border: 1px solid transparent;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.chat-bubble:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 12px 30px rgba(2, 6, 23, 0.33);
+}
+.chat-bubble--assistant {
+  background: linear-gradient(180deg, rgba(51, 65, 85, 0.98), rgba(30, 41, 59, 0.98));
+  border-color: rgba(56, 189, 248, 0.28);
+}
+.chat-bubble--assistant::before {
+  content: "";
+  position: absolute;
+  left: -7px;
+  top: 12px;
+  width: 10px;
+  height: 10px;
+  border-bottom: 1px solid rgba(56, 189, 248, 0.16);
+  border-left: 1px solid rgba(56, 189, 248, 0.16);
+  background: rgba(51, 65, 85, 0.95);
+  transform: rotate(45deg);
+}
+.chat-bubble--user {
+  background: linear-gradient(135deg, rgba(14, 165, 233, 0.98), rgba(99, 102, 241, 0.98));
+  border-color: rgba(255, 255, 255, 0.2);
+}
+.chat-bubble--user::before {
+  content: "";
+  position: absolute;
+  right: -7px;
+  top: 12px;
+  width: 10px;
+  height: 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.2);
+  border-right: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(71, 133, 246, 0.95);
+  transform: rotate(45deg);
+}
+.chat-row--grouped .chat-bubble::before {
+  opacity: 0.25;
+}
+.chat-time {
+  margin-top: 0.45rem;
+  font-size: 0.6rem;
+  font-style: italic;
+  letter-spacing: 0.01em;
+  line-height: 1;
+  color: rgba(148, 163, 184, 0.78);
+  text-align: right;
+}
+.chat-bubble--assistant .chat-time {
+  color: rgba(148, 163, 184, 0.88);
+}
+.chat-bubble--user .chat-time {
+  color: rgba(219, 234, 254, 0.88);
+}
+
 /* Booking card gradient border */
 .booking-card {
   background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
-  border: 1px solid #22d3ee33;
-  box-shadow: 0 0 20px #22d3ee22;
+  border: 1px solid #22d3ee44;
+  box-shadow: 0 12px 30px #22d3ee22;
 }
 
 /* Gradient text */
@@ -77,6 +172,9 @@
   animation: cursor-blink 0.7s infinite;
   color: #38bdf8;
   margin-left: 1px;
+}
+.stream-cursor .message-rich-text {
+  transition: opacity 0.12s ease;
 }
 
 /* Slot picker button */
@@ -127,18 +225,19 @@
 .slot-chip-btn {
   font-size: 0.8125rem;
   line-height: 1.25;
-  padding: 0.4rem 0.85rem;
+  padding: 0.45rem 0.9rem;
   border-radius: 9999px;
   border: 1px solid rgba(56, 189, 248, 0.35);
-  background: rgba(15, 23, 42, 0.55);
+  background: linear-gradient(180deg, rgba(15, 23, 42, 0.66), rgba(30, 41, 59, 0.7));
   color: #e2e8f0;
   cursor: pointer;
-  transition: background 0.15s ease, border-color 0.15s ease, transform 0.12s ease;
+  transition: background 0.15s ease, border-color 0.15s ease, transform 0.12s ease, box-shadow 0.15s ease;
 }
 .slot-chip-btn:hover {
   background: rgba(56, 189, 248, 0.18);
   border-color: #38bdf8;
   transform: translateY(-1px);
+  box-shadow: 0 8px 16px rgba(56, 189, 248, 0.15);
 }
 .slot-chip-btn:focus-visible {
   outline: 2px solid #38bdf8;
@@ -182,11 +281,15 @@
   padding: 0.65rem 0.85rem;
   border-radius: 0.65rem;
   border: 1px solid rgba(56, 189, 248, 0.28);
-  background: rgba(15, 23, 42, 0.65);
+  background: linear-gradient(180deg, rgba(15, 23, 42, 0.78), rgba(30, 41, 59, 0.86));
   color: #f1f5f9;
   font-size: 0.9375rem;
   font-weight: 600;
   line-height: 1.35;
+}
+.msg-confirm-slot::before {
+  content: "🗓️";
+  margin-right: 0.4rem;
 }
 .msg-confirm-hint {
   margin: 0;

@@ -116,26 +116,40 @@ _VI_WEEKDAY_PHRASES: tuple[tuple[str, int], ...] = (
 )
 
 
-def infer_date_str_from_user_text(user_text: str) -> Optional[str]:
+def infer_date_strs_from_user_text(user_text: str) -> list[str]:
     if not user_text:
-        return None
+        return []
     low = user_text.lower()
+    today = datetime.now(timezone.utc).date()
+    found: list[str] = []
+    seen: set[str] = set()
+
     for phrase, target_wd in _VI_WEEKDAY_PHRASES:
         if phrase in low:
-            today = datetime.now(timezone.utc).date()
             delta = target_wd - today.weekday()
             if delta < 0:
                 delta += 7
             d = today + timedelta(days=delta)
             while d.weekday() >= 5:
                 d += timedelta(days=1)
-            return d.isoformat()
+            iso = d.isoformat()
+            if iso not in seen:
+                seen.add(iso)
+                found.append(iso)
     if "ngày mai" in low:
-        d = datetime.now(timezone.utc).date() + timedelta(days=1)
+        d = today + timedelta(days=1)
         while d.weekday() >= 5:
             d += timedelta(days=1)
-        return d.isoformat()
-    return None
+        iso = d.isoformat()
+        if iso not in seen:
+            seen.add(iso)
+            found.append(iso)
+    return found
+
+
+def infer_date_str_from_user_text(user_text: str) -> Optional[str]:
+    dates = infer_date_strs_from_user_text(user_text)
+    return dates[0] if dates else None
 
 
 @tool

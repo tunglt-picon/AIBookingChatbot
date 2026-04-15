@@ -26,7 +26,7 @@ async def lifespan(app: FastAPI):
 
     # Pre-warm LangGraph graph (loads LLM clients, builds graph)
     from app.agents.graph import get_graph  # noqa: F401
-    get_graph()
+    await get_graph()
 
     yield
     # ── Shutdown ──────────────────────────────────
