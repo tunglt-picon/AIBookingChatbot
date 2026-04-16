@@ -16,6 +16,7 @@ from langchain_core.messages import AIMessage, SystemMessage
 from langchain_core.runnables import RunnableConfig
 
 from app.agents.state import AgentState
+from app.agents.llm_log_utils import format_llm_response_for_log, message_content_as_text
 from app.agents.llm_factory import get_specialist_llm
 from app.config import settings
 from app.observability.langfuse_client import get_langfuse_callback
@@ -48,9 +49,11 @@ Quy tắc:
 - **TUYỆT ĐỐI KHÔNG hỏi họ tên, số điện thoại, email, địa chỉ, CMND/CCCD, ngày sinh** hay bất kỳ thông tin
   hành chính/định danh nào. Bệnh nhân đã đăng nhập — hệ thống đã có các thông tin này.
 - Chỉ tập trung vào **triệu chứng & phân loại category**.
-- Khi chốt: viết lời thoại trước, **sau đó** thêm khối ```json``` ở CUỐI.
-  Lời thoại nêu rõ **tên category** (tiếng Việt) và hỏi BN xác nhận.
-  Nếu 2 category gần giống → nêu cả 2 cho BN chọn.
+- Khi chốt: viết **1 câu ngắn** cảm ơn + báo đã ghi nhận đủ triệu chứng
+  (ví dụ: "Cảm ơn bạn, mình đã ghi nhận đủ triệu chứng."),
+  **KHÔNG nêu tên category, KHÔNG hỏi xác nhận** ở bước này —
+  hệ thống sẽ tự hiển thị nhóm khám kèm mô tả để BN xác nhận ở lượt kế tiếp.
+  Sau đó thêm khối ```json``` ở CUỐI với `category_code` đã phân loại.
 - Mẫu JSON (khi chốt):
 
 ```json
@@ -247,7 +250,12 @@ async def dental_specialist_node(state: AgentState, config: RunnableConfig) -> d
     )
     t0 = time.monotonic()
     response = await llm.ainvoke(prompt, config={"callbacks": callbacks})
-    response_text = response.content if isinstance(response.content, str) else str(response.content)
+    logger.info(
+        "[agent:specialist] LLM RESPONSE session_id=%s\n\n%s\n",
+        state["session_id"],
+        format_llm_response_for_log(response),
+    )
+    response_text = message_content_as_text(response.content)
     logger.info(
         "[agent:specialist] LLM done session_id=%s elapsed_s=%.2f reply_len=%s has_json=%s",
         state["session_id"], time.monotonic() - t0, len(response_text),

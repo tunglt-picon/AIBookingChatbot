@@ -19,6 +19,7 @@ from langchain_core.messages import AIMessage, SystemMessage
 from langchain_core.runnables import RunnableConfig
 
 from app.agents.state import AgentState
+from app.agents.llm_log_utils import format_llm_response_for_log, message_content_as_text
 from app.agents.llm_factory import get_root_llm
 from app.config import settings
 from app.observability.langfuse_client import get_langfuse_callback
@@ -349,10 +350,15 @@ async def classify_intent_node(state: AgentState, config: RunnableConfig) -> dic
     t0 = time.monotonic()
     response = await llm.ainvoke(prompt, config={"callbacks": callbacks})
     logger.info(
+        "[agent:root] classify_intent LLM RESPONSE session_id=%s\n\n%s\n",
+        state["session_id"],
+        format_llm_response_for_log(response),
+    )
+    logger.info(
         "[agent:root] classify_intent LLM done session_id=%s elapsed_s=%.2f",
         state["session_id"], time.monotonic() - t0,
     )
-    intent_raw = response.content.strip().lower()
+    intent_raw = message_content_as_text(response.content).strip().lower()
 
     if "consultation" in intent_raw:
         intent = "consultation"
@@ -393,14 +399,22 @@ async def root_respond_node(state: AgentState, config: RunnableConfig) -> dict:
 
     # Sau triage: bắt buộc xác nhận category trước khi qua bước chọn ngày.
     if state.get("triage_complete") and state.get("pending_category_confirmation"):
-        from app.domain.dental_cases import category_label_vi
+        from app.domain.dental_cases import category_label_vi, category_short_description_vi
 
         cat = state.get("category_code")
         cat_label = category_label_vi(cat) if cat else "nhóm khám phù hợp"
-        msg = (
-            f"Mình đang phân loại bạn vào nhóm **{cat_label}**. "
-            "Bạn xác nhận giúp mình phân loại này đã đúng chưa?"
-        )
+        cat_desc = category_short_description_vi(cat) if cat else ""
+        if cat_desc:
+            msg = (
+                f"Mình đang phân loại bạn vào nhóm **{cat_label}** "
+                f"— {cat_desc}\n\n"
+                "Bạn xác nhận giúp mình phân loại này đã đúng chưa?"
+            )
+        else:
+            msg = (
+                f"Mình đang phân loại bạn vào nhóm **{cat_label}**. "
+                "Bạn xác nhận giúp mình phân loại này đã đúng chưa?"
+            )
         return {
             "messages": [AIMessage(content=msg, name="root_agent")],
             "last_agent_message": msg,
@@ -452,7 +466,12 @@ async def root_respond_node(state: AgentState, config: RunnableConfig) -> dict:
     )
     t0 = time.monotonic()
     response = await llm.ainvoke(prompt, config={"callbacks": callbacks})
-    text = response.content if isinstance(response.content, str) else str(response.content)
+    logger.info(
+        "[agent:root] root_respond LLM RESPONSE session_id=%s\n\n%s\n",
+        state["session_id"],
+        format_llm_response_for_log(response),
+    )
+    text = message_content_as_text(response.content)
     logger.info(
         "[agent:root] root_respond done session_id=%s elapsed_s=%.2f len=%s",
         state["session_id"], time.monotonic() - t0, len(text),

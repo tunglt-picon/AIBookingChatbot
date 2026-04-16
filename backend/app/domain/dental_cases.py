@@ -134,6 +134,20 @@ def category_label_vi(code: Optional[str]) -> str:
     return category_profile(code).label_vi
 
 
+# Mô tả 1 câu, tập trung vào "nhóm việc sẽ làm" để BN dễ nhận ra mình có thuộc nhóm này không.
+_CATEGORY_SHORT_DESC_VI: dict[str, str] = {
+    "CAT-01": "xử lý răng sâu / mẻ / mòn cổ răng bằng miếng trám (thường 30 phút).",
+    "CAT-02": "chữa tủy răng viêm hoặc hoại tử, xử lý áp xe chân răng (thường 60 phút).",
+    "CAT-03": "nhổ răng (răng khôn, răng lung lay, chân răng) hoặc tiểu phẫu nha (khoảng 45 phút).",
+    "CAT-04": "khám và điều trị răng cho trẻ em — trám sữa, nhổ sữa, bôi fluoride (30 phút).",
+    "CAT-05": "khám tổng quát, lấy cao răng, chụp X-quang, tư vấn niềng / sứ / implant (20 phút).",
+}
+
+
+def category_short_description_vi(code: Optional[str]) -> str:
+    return _CATEGORY_SHORT_DESC_VI.get(normalize_category_code(code), "").strip()
+
+
 def _hm_to_minutes(hm: str) -> int:
     h, m = map(int, hm.split(":", 1))
     return h * 60 + m

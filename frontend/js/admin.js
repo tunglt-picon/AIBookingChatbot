@@ -105,13 +105,13 @@ const AGENTS = [
       "Khi chốt (có ```json): symptoms_summary, ai_diagnosis, category_code → specialist_concluded=true.",
     ],
     defaultMessage:
-      "Em bị đau răng hàm dưới phải khoảng 3 ngày, đau 6/10, nhói khi uống lạnh.",
+      "Em bị đau răng hàm dưới phải khoảng 3 ngày, nhói khi uống lạnh.",
     defaultStatePatch: JSON.stringify({ follow_up_count: 0 }, null, 2),
     scenarioExamples: [
       {
         label: "Lượt 1 — mô tả triệu chứng lần đầu",
         hint: "LLM thường hỏi thêm 1 câu.",
-        message: "Em bị đau răng hàm dưới phải 3 ngày, đau 6/10, nhói khi uống lạnh.",
+        message: "Em bị đau răng hàm dưới phải 3 ngày, nhói khi uống lạnh.",
         statePatch: JSON.stringify({ follow_up_count: 0 }, null, 2),
       },
       {
