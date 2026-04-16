@@ -36,6 +36,8 @@ class AgentState(TypedDict):
     category_code: Optional[str]
     # Per-turn: True khi specialist chốt xong (có JSON / force_conclusion) → route đến save_intake
     specialist_concluded: bool
+    # True khi đang chờ BN xác nhận category vừa phân loại
+    pending_category_confirmation: bool
     # True sau khi save_intake ghi DB — mới được chọn giờ
     triage_complete: Optional[bool]
 

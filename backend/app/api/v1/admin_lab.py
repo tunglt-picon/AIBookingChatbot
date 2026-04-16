@@ -92,6 +92,7 @@ def _default_agent_state(
         "ai_diagnosis": None,
         "follow_up_count": 0,
         "specialist_concluded": False,
+        "pending_category_confirmation": False,
         "category_code": None,
         "triage_complete": None,
         "intake_id": None,
@@ -149,6 +150,39 @@ async def mock_schedule_summary():
 async def triage_rubric_dump():
     """Toàn bộ rubric triệu chứng ↔ mã loại khám + 90 ví dụ (file mock JSON)."""
     return load_triage_rubric_raw()
+
+
+@router.get("/sessions/{session_id}/state")
+async def session_state(session_id: int):
+    """
+    Lấy state hiện tại của session từ LangGraph checkpointer (thread_id=session_id).
+    """
+    from app.agents.graph import get_graph
+
+    graph = await get_graph()
+    config: RunnableConfig = {"configurable": {"thread_id": str(session_id)}}
+    try:
+        snap = await graph.aget_state(config)
+    except Exception as e:
+        logger.exception("[admin_lab] session_state failed session_id=%s", session_id)
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+    values = {}
+    metadata = {}
+    next_nodes: list[str] = []
+    if snap is not None:
+        values = _serialize_lab_value(getattr(snap, "values", {}) or {})
+        metadata = _serialize_lab_value(getattr(snap, "metadata", {}) or {})
+        next_raw = getattr(snap, "next", ()) or ()
+        next_nodes = [str(x) for x in next_raw]
+
+    return {
+        "session_id": session_id,
+        "has_checkpoint": bool(snap),
+        "next_nodes": next_nodes,
+        "state": values,
+        "metadata": metadata,
+    }
 
 
 @router.post("/agents/invoke")

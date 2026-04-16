@@ -443,6 +443,11 @@ function labelInput(id, label, type, value, placeholder) {
   if (type === "textarea") {
     input = el("textarea", "w-full min-h-[120px] bg-slate-950/50 border border-slate-600 rounded-xl px-3.5 py-3 text-sm text-slate-100 font-mono leading-relaxed focus:outline-none focus:ring-2 focus:ring-sky-500/40 focus:border-sky-500/50");
     input.rows = 5;
+    // JSON inputs nên cao hơn để giảm phải scroll khi test nhiều lượt.
+    if (id === "state_patch" || id === "tool_args") {
+      input.className = input.className.replace("min-h-[120px]", "min-h-[360px]");
+      input.rows = 16;
+    }
   } else if (type === "number") {
     input = el("input", "w-full max-w-[12rem] bg-slate-950/50 border border-slate-600 rounded-xl px-3.5 py-2.5 text-sm text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-500/40 focus:border-sky-500/50");
     input.type = "number";
@@ -486,6 +491,62 @@ function getFormValues() {
 function setResult(obj, meta) {
   $("result-json").textContent = JSON.stringify(obj, null, 2);
   $("result-meta").textContent = meta || "";
+}
+
+function _deepClone(v) {
+  return JSON.parse(JSON.stringify(v));
+}
+
+function _toLabPatchMessage(m) {
+  if (!m || typeof m !== "object") return null;
+  const t = String(m.type || "").toLowerCase();
+  const content = typeof m.content === "string" ? m.content : String(m.content ?? "");
+  if (!content.trim()) return null;
+  if (t === "human") return { role: "human", content };
+  if (t === "ai" || t === "assistant" || t === "system" || t === "tool") {
+    return { role: "ai", content, name: m.name || "assistant" };
+  }
+  return null;
+}
+
+function _appendIfDifferent(arr, msg) {
+  if (!msg) return;
+  const last = arr[arr.length - 1];
+  if (last && last.role === msg.role && last.content === msg.content) return;
+  arr.push(msg);
+}
+
+function buildNextStatePatch(currentPatch, currentMessage, updates) {
+  const next = _deepClone(currentPatch || {});
+  const priorMsgs = Array.isArray(next.messages) ? _deepClone(next.messages) : [];
+  delete next.messages;
+
+  // Merge all update fields except messages (messages is handled separately below).
+  Object.entries(updates || {}).forEach(([k, v]) => {
+    if (k === "messages") return;
+    next[k] = _deepClone(v);
+  });
+
+  const mergedMsgs = Array.isArray(priorMsgs) ? priorMsgs : [];
+  const humanMsg = (currentMessage || "").trim();
+  if (humanMsg) _appendIfDifferent(mergedMsgs, { role: "human", content: humanMsg });
+
+  const aiMsgs = Array.isArray(updates?.messages) ? updates.messages.map(_toLabPatchMessage).filter(Boolean) : [];
+  aiMsgs.forEach((m) => _appendIfDifferent(mergedMsgs, m));
+
+  // Keep recent context only, avoid textarea becoming too large.
+  next.messages = mergedMsgs.slice(-20);
+  return next;
+}
+
+function applyAgentRunAutoFill(pack, resultData) {
+  const statePatchEl = $("state_patch");
+  if (!statePatchEl) return;
+  const updates = resultData?.updates;
+  if (!updates || typeof updates !== "object") return;
+  const nextPatch = buildNextStatePatch(pack.body.state_patch || {}, pack.body.message || "", updates);
+  statePatchEl.value = JSON.stringify(nextPatch, null, 2);
+  labFlash("Đã tự động điền state_patch cho lượt kế tiếp.");
 }
 
 function _mockEl(tag, className, text) {
@@ -582,6 +643,62 @@ async function loadMockSummary() {
   }
 }
 
+function renderInspectResult(data) {
+  const summaryEl = $("inspect-summary");
+  const jsonEl = $("inspect-state-json");
+  if (!summaryEl || !jsonEl) return;
+
+  const has = !!data?.has_checkpoint;
+  const nextNodes = Array.isArray(data?.next_nodes) ? data.next_nodes : [];
+  const state = data?.state || {};
+  const bits = [
+    `checkpoint: ${has ? "có" : "không"}`,
+    `intent: ${state.intent ?? "—"}`,
+    `current_agent: ${state.current_agent ?? "—"}`,
+    `triage_complete: ${state.triage_complete ?? "—"}`,
+    `booking_confirmed: ${state.booking_confirmed ?? "—"}`,
+    `next: ${nextNodes.length ? nextNodes.join(", ") : "END/không có"}`,
+  ];
+  summaryEl.textContent = bits.join("  |  ");
+  jsonEl.textContent = JSON.stringify(data, null, 2);
+}
+
+async function inspectSessionState() {
+  const sidRaw = $("inspect-session-id")?.value ?? "1";
+  const sid = parseInt(sidRaw, 10) || 1;
+  const btn = $("btn-inspect-session");
+  const summaryEl = $("inspect-summary");
+  const jsonEl = $("inspect-state-json");
+  if (btn) btn.disabled = true;
+  if (summaryEl) summaryEl.textContent = "Đang tải state...";
+  if (jsonEl) jsonEl.textContent = "{}";
+  try {
+    let data;
+    const adminApi = window.DentalApp?.AdminLabAPI;
+    if (adminApi && typeof adminApi.getSessionState === "function") {
+      data = await adminApi.getSessionState(sid);
+    } else {
+      // Fallback for stale cached api.js in browser.
+      const base = window.APP_CONFIG?.apiBase ?? "http://localhost:8000/api/v1";
+      const token = window.DentalApp?.Auth?.getToken?.();
+      const headers = token ? { Authorization: `Bearer ${token}` } : {};
+      const res = await fetch(`${base}/admin/lab/sessions/${sid}/state`, { headers });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ detail: res.statusText }));
+        throw new Error(err.detail || "Inspect request failed");
+      }
+      data = await res.json();
+    }
+    renderInspectResult(data);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    if (summaryEl) summaryEl.textContent = "Lỗi: " + msg;
+    if (jsonEl) jsonEl.textContent = JSON.stringify({ error: msg }, null, 2);
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
 document.addEventListener("DOMContentLoaded", () => {
   const { Auth, AdminLabAPI, ScheduleAPI } = window.DentalApp;
   $("admin-gate")?.classList.add("hidden");
@@ -594,7 +711,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
   $("btn-admin-logout")?.addEventListener("click", () => { Auth.logout(); window.location.href = "index.html"; });
   $("btn-refresh-mock")?.addEventListener("click", () => loadMockSummary());
+  $("btn-inspect-session")?.addEventListener("click", () => inspectSessionState());
   $("btn-clear-result")?.addEventListener("click", () => setResult({}, ""));
+  inspectSessionState();
 
   $("btn-run")?.addEventListener("click", async () => {
     const btn = $("btn-run");
@@ -605,6 +724,7 @@ document.addEventListener("DOMContentLoaded", () => {
       let data;
       if (pack.type === "agent") {
         data = await AdminLabAPI.invokeAgent(pack.body);
+        applyAgentRunAutoFill(pack, data);
       } else if (pack.type === "tool") {
         data = await AdminLabAPI.invokeTool(pack.body);
       } else {

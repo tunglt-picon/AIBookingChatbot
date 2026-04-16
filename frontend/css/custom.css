@@ -44,10 +44,10 @@
   align-items: flex-end;
 }
 .chat-row .chat-avatar {
-  margin-bottom: 0.35rem;
+  margin-bottom: 0.45rem;
 }
 .chat-row--grouped .chat-avatar {
-  margin-bottom: 0.2rem;
+  margin-bottom: 0.3rem;
 }
 
 .chat-avatar {
@@ -68,6 +68,8 @@
 
 .chat-bubble {
   position: relative;
+  display: flex;
+  flex-direction: column;
   box-shadow: 0 8px 26px rgba(2, 6, 23, 0.28);
   border: 1px solid transparent;
   transition: transform 0.2s ease, box-shadow 0.2s ease;
@@ -112,7 +114,7 @@
   opacity: 0.25;
 }
 .chat-time {
-  margin-top: 0.45rem;
+  margin-top: auto;
   font-size: 0.6rem;
   font-style: italic;
   letter-spacing: 0.01em;
@@ -260,6 +262,30 @@
 .slot-chip-btn--ghost:hover {
   border-color: rgba(148, 163, 184, 0.55);
   background: rgba(51, 65, 85, 0.55);
+}
+.slot-chip-btn--disabled,
+.slot-chip-btn:disabled {
+  opacity: 0.45;
+  pointer-events: none;
+  cursor: not-allowed;
+  filter: grayscale(0.2);
+}
+.slot-chip-btn--chosen {
+  opacity: 1 !important;
+  filter: none !important;
+  pointer-events: none;
+  cursor: default;
+  background: linear-gradient(180deg, rgba(16, 185, 129, 0.28), rgba(5, 150, 105, 0.35)) !important;
+  border-color: #10b981 !important;
+  color: #ecfdf5 !important;
+  font-weight: 600;
+  box-shadow: 0 6px 14px rgba(16, 185, 129, 0.25);
+  position: relative;
+}
+.slot-chip-btn--chosen::after {
+  content: "✓";
+  margin-left: 0.4rem;
+  font-weight: 700;
 }
 
 /* Confirm booking: slot summary + Đồng ý / Hủy */

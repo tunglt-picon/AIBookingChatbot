@@ -117,30 +117,67 @@ _VI_WEEKDAY_PHRASES: tuple[tuple[str, int], ...] = (
 
 
 def infer_date_strs_from_user_text(user_text: str) -> list[str]:
+    """
+    Parse "Thứ 3, Thứ 5" / "ngày mai" … → list[ISO date].
+
+    Quy tắc resolve:
+      - "Thứ N" / "Thứ <hai/ba/…>": nếu N == hôm nay → **trả về hôm đó tuần sau**
+        (booking luôn hướng về tương lai; tránh chọn trùng hôm nay mà phòng khám hết slot).
+      - Bỏ qua ngày cuối tuần (T7/CN).
+      - Ưu tiên snap vào tuần có dữ liệu mock nếu ngày suy ra không thuộc tuần mock đang load
+        (tránh trường hợp hôm nay rơi ngoài khoảng mock 5 ngày).
+    """
     if not user_text:
         return []
     low = user_text.lower()
     today = datetime.now(timezone.utc).date()
+
+    # Lấy danh sách ngày của tuần mock để "neo" kết quả khi hôm nay nằm ngoài tuần mock.
+    try:
+        from app.services.mock_week_schedule_loader import list_mock_date_isos
+        mock_dates = sorted(list_mock_date_isos() or [])
+    except Exception:
+        mock_dates = []
+
+    mock_by_weekday: dict[int, str] = {}
+    for iso in mock_dates:
+        try:
+            y, m, dd = iso.split("-")
+            d = date(int(y), int(m), int(dd))
+            mock_by_weekday.setdefault(d.weekday(), iso)
+        except Exception:
+            continue
+
+    def _resolve_weekday(target_wd: int) -> str:
+        if target_wd in mock_by_weekday:
+            return mock_by_weekday[target_wd]
+        delta = target_wd - today.weekday()
+        # Nếu rơi vào hôm nay (delta == 0) hoặc đã qua (delta < 0) → lùi sang tuần sau.
+        if delta <= 0:
+            delta += 7
+        d = today + timedelta(days=delta)
+        while d.weekday() >= 5:
+            d += timedelta(days=1)
+        return d.isoformat()
+
     found: list[str] = []
     seen: set[str] = set()
 
     for phrase, target_wd in _VI_WEEKDAY_PHRASES:
-        if phrase in low:
-            delta = target_wd - today.weekday()
-            if delta < 0:
-                delta += 7
-            d = today + timedelta(days=delta)
-            while d.weekday() >= 5:
-                d += timedelta(days=1)
-            iso = d.isoformat()
+        if phrase in low and target_wd < 5:
+            iso = _resolve_weekday(target_wd)
             if iso not in seen:
                 seen.add(iso)
                 found.append(iso)
+
     if "ngày mai" in low:
         d = today + timedelta(days=1)
         while d.weekday() >= 5:
             d += timedelta(days=1)
         iso = d.isoformat()
+        # Nếu hôm sau nằm ngoài tuần mock, neo vào ngày đầu tuần mock.
+        if mock_dates and iso not in mock_dates:
+            iso = mock_dates[0]
         if iso not in seen:
             seen.add(iso)
             found.append(iso)

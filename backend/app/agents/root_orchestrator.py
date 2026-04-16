@@ -28,6 +28,19 @@ logger = logging.getLogger(__name__)
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
+
+def _format_prompt_for_log(messages: list) -> str:
+    blocks: list[str] = []
+    for i, msg in enumerate(messages, start=1):
+        role = getattr(msg, "type", type(msg).__name__)
+        name = getattr(msg, "name", "") or "-"
+        content = msg.content if isinstance(getattr(msg, "content", ""), str) else str(getattr(msg, "content", ""))
+        blocks.append(
+            f"[{i}] role={role} name={name}\n"
+            f"{content}"
+        )
+    return "\n\n------------------------------\n\n".join(blocks)
+
 def _last_human_text(state: AgentState) -> str:
     for msg in reversed(state.get("messages") or []):
         if hasattr(msg, "type") and msg.type == "human":
@@ -75,6 +88,32 @@ def _looks_like_post_triage_booking_yes(text: str) -> bool:
         return True
     short = low.rstrip(".,!?…")
     return short in ("ừ", "uh", "dạ", "ạ", "vâng", "có")
+
+
+def _looks_like_category_confirmation_yes(text: str) -> bool:
+    low = (text or "").lower().strip()
+    if not low:
+        return False
+    # Match đúng label button "Đúng nhóm này" (ưu tiên) + vài biến thể ngắn.
+    keys = (
+        "đúng nhóm này", "dung nhom nay", "đúng nhóm", "dung nhom",
+        "nhóm này", "nhom nay", "xác nhận", "xac nhan",
+        "đúng rồi", "dung roi", "đồng ý", "dong y",
+    )
+    return any(k in low for k in keys)
+
+
+def _looks_like_category_confirmation_no(text: str) -> bool:
+    low = (text or "").lower().strip()
+    if not low:
+        return False
+    # Match đúng label button "Nhóm khác" + vài biến thể rõ ràng (tránh dính với "không" chung).
+    keys = (
+        "nhóm khác", "nhom khac", "đổi nhóm", "doi nhom",
+        "chưa đúng", "chua dung", "sai nhóm", "sai nhom",
+        "không đúng nhóm", "khong dung nhom",
+    )
+    return any(k in low for k in keys)
 
 
 def _looks_like_booking_intent(text: str) -> bool:
@@ -164,6 +203,14 @@ def _build_day_chips_payload() -> dict[str, Any]:
     return {"template": "day_chips", "days": labels}
 
 
+def _build_category_confirm_payload(category_code: str | None) -> dict[str, Any]:
+    return {
+        "template": "category_confirm",
+        "category_code": category_code or "",
+        "actions": ["Đúng nhóm này", "Nhóm khác"],
+    }
+
+
 # ── Intent Classification ─────────────────────────────────────────────────────
 
 _INTENT_SYSTEM = """\
@@ -196,6 +243,42 @@ async def classify_intent_node(state: AgentState, config: RunnableConfig) -> dic
 
     last_human = _last_human_text(state)
 
+    # Category confirmation gate (sau specialist chốt)
+    if state.get("pending_category_confirmation"):
+        if _looks_like_category_confirmation_no(last_human):
+            logger.info("[classify_intent] category rejected -> consultation session_id=%s", state["session_id"])
+            return {
+                "intent": "consultation",
+                "current_agent": "root",
+                "skip_root_respond": False,
+                "pending_category_confirmation": False,
+                "triage_complete": False,
+                "specialist_concluded": False,
+                # Reset để specialist được quyền hỏi lại chi tiết thay vì force_conclusion ngay.
+                "follow_up_count": 0,
+                "category_code": None,
+                "available_slots": [],
+                "pending_booking_date_iso": None,
+                "pending_confirmation_slot": None,
+                "selected_slot": None,
+                "booking_confirmed": False,
+                "reservation_id": None,
+            }
+        if _looks_like_category_confirmation_yes(last_human) or _looks_like_booking_intent(last_human):
+            logger.info("[classify_intent] category confirmed -> select_slot session_id=%s", state["session_id"])
+            return {
+                "intent": "select_slot",
+                "current_agent": "root",
+                "skip_root_respond": False,
+                "pending_category_confirmation": False,
+                "available_slots": [],
+                "pending_booking_date_iso": None,
+                "pending_confirmation_slot": None,
+                "selected_slot": None,
+                "booking_confirmed": False,
+                "reservation_id": None,
+            }
+
     # Shortcut: explicit confirmation when pending
     if state.get("pending_confirmation_slot") and _looks_like_booking_confirmation(last_human):
         logger.info("[classify_intent] shortcut confirm_appointment session_id=%s", state["session_id"])
@@ -217,7 +300,19 @@ async def classify_intent_node(state: AgentState, config: RunnableConfig) -> dic
         and _looks_like_post_triage_booking_yes(last_human)
     ):
         logger.info("[classify_intent] shortcut select_slot (post-triage yes) session_id=%s", state["session_id"])
-        return {"intent": "select_slot", "current_agent": "root", "skip_root_respond": False}
+        # Reset booking-related transient state để luôn hỏi "bạn rảnh thứ mấy"
+        # (tránh dùng lại state cũ do Redis checkpoint).
+        return {
+            "intent": "select_slot",
+            "current_agent": "root",
+            "skip_root_respond": False,
+            "available_slots": [],
+            "pending_booking_date_iso": None,
+            "pending_confirmation_slot": None,
+            "booking_confirmed": False,
+            "reservation_id": None,
+            "selected_slot": None,
+        }
 
     # Booking-like text without triage → force consultation first
     if not state.get("triage_complete") and _looks_like_booking_intent(last_human):
@@ -245,6 +340,11 @@ async def classify_intent_node(state: AgentState, config: RunnableConfig) -> dic
     logger.info(
         "[agent:root] classify_intent LLM invoke start session_id=%s msgs_in_prompt=%s",
         state["session_id"], len(prompt),
+    )
+    logger.info(
+        "[agent:root] classify_intent PROMPT session_id=%s\n\n%s\n",
+        state["session_id"],
+        _format_prompt_for_log(prompt),
     )
     t0 = time.monotonic()
     response = await llm.ainvoke(prompt, config={"callbacks": callbacks})
@@ -274,13 +374,15 @@ Bạn là trợ lý AI thân thiện của Phòng Khám Nha Khoa SmileCare. \
 Nhiệm vụ: chào đón bệnh nhân, thu thập thông tin ban đầu, hướng dẫn đặt lịch.
 
 Thông tin phòng khám:
-  - Địa chỉ: 123 Nguyễn Huệ, TP.HCM
+  - Địa chỉ: 101 Lê Lợi, Thành phố Đà Nẵng
   - Giờ làm việc: Thứ 2–6, 08:00–17:00
   - Hotline: 028-1234-5678
 
 Quy định:
   - KHÔNG tư vấn y khoa, KHÔNG chẩn đoán, KHÔNG kê đơn.
-  - Chỉ hỗ trợ đặt lịch, xác nhận thông tin hành chính, thu thập triệu chứng ban đầu.
+  - Chỉ hỗ trợ đặt lịch và thu thập triệu chứng ban đầu.
+  - **TUYỆT ĐỐI KHÔNG hỏi họ tên, số điện thoại, email, địa chỉ, CMND/CCCD, ngày sinh**
+    hay bất kỳ thông tin hành chính/định danh nào. Bệnh nhân đã đăng nhập — hệ thống đã có các thông tin này.
   - Trả lời ngắn gọn, thân thiện, bằng tiếng Việt.
 """
 
@@ -288,6 +390,24 @@ Quy định:
 async def root_respond_node(state: AgentState, config: RunnableConfig) -> dict:
     llm = get_root_llm()
     callbacks = get_langfuse_callback(config)
+
+    # Sau triage: bắt buộc xác nhận category trước khi qua bước chọn ngày.
+    if state.get("triage_complete") and state.get("pending_category_confirmation"):
+        from app.domain.dental_cases import category_label_vi
+
+        cat = state.get("category_code")
+        cat_label = category_label_vi(cat) if cat else "nhóm khám phù hợp"
+        msg = (
+            f"Mình đang phân loại bạn vào nhóm **{cat_label}**. "
+            "Bạn xác nhận giúp mình phân loại này đã đúng chưa?"
+        )
+        return {
+            "messages": [AIMessage(content=msg, name="root_agent")],
+            "last_agent_message": msg,
+            "current_agent": "root",
+            "skip_root_respond": True,
+            "extra": {"message_ui": _build_category_confirm_payload(cat)},
+        }
 
     # Sau khi đã triage xong, luôn hỏi ngày rảnh trước (không tự chốt ngày mặc định).
     if state.get("triage_complete") and not state.get("booking_confirmed") and not state.get("available_slots"):
@@ -325,6 +445,11 @@ async def root_respond_node(state: AgentState, config: RunnableConfig) -> dict:
         "[agent:root] root_respond LLM invoke session_id=%s has_slots=%s booking_confirmed=%s",
         state["session_id"], bool(state.get("available_slots")), bool(state.get("booking_confirmed")),
     )
+    logger.info(
+        "[agent:root] root_respond PROMPT session_id=%s\n\n%s\n",
+        state["session_id"],
+        _format_prompt_for_log(prompt),
+    )
     t0 = time.monotonic()
     response = await llm.ainvoke(prompt, config={"callbacks": callbacks})
     text = response.content if isinstance(response.content, str) else str(response.content)
@@ -361,7 +486,18 @@ async def save_intake_node(state: AgentState, config: RunnableConfig) -> dict:
     data = json.loads(result_json)
     intake_id = data.get("intake_id")
     logger.info("[save_intake] intake_id=%s", intake_id)
-    return {"intake_id": intake_id, "triage_complete": True}
+    return {
+        "intake_id": intake_id,
+        "triage_complete": True,
+        "pending_category_confirmation": True,
+        # Reset booking-related state right after triage is persisted.
+        "available_slots": [],
+        "pending_booking_date_iso": None,
+        "pending_confirmation_slot": None,
+        "selected_slot": None,
+        "booking_confirmed": False,
+        "reservation_id": None,
+    }
 
 
 # ── Booking prerequisites ─────────────────────────────────────────────────────
@@ -508,11 +644,11 @@ async def confirm_booking_node(state: AgentState, config: RunnableConfig) -> dic
         date_iso = infer_date_str_from_user_text(user_text)
 
     if hm is None:
-        candidate_dates = date_hints or ([date_iso] if date_iso else [])
-        if not candidate_dates:
+        # User hiện tại chưa cung cấp giờ => bắt buộc phải cung cấp "thứ mấy" trong message này.
+        # Không fallback theo state cũ để tránh việc Redis checkpoint làm bot nhảy nhầm ngày (vd: tự đưa Thứ 2).
+        if not date_hints:
             msg = (
                 "Trước khi chọn giờ, bạn vui lòng cho mình biết **bạn rảnh vào thứ mấy** "
-                "(ví dụ: *Thứ 3* hoặc *Thứ 3, Thứ 5*)."
             )
             return {
                 "messages": [AIMessage(content=msg, name="root_agent")],
@@ -522,7 +658,9 @@ async def confirm_booking_node(state: AgentState, config: RunnableConfig) -> dic
                 "extra": {"message_ui": _build_day_chips_payload()},
             }
 
+        candidate_dates = date_hints
         all_slots: list[dict] = []
+        days_without_slots: list[str] = []
         for d_iso in candidate_dates:
             day_json = await get_mock_schedule.ainvoke({
                 "scope": "day",
@@ -531,16 +669,21 @@ async def confirm_booking_node(state: AgentState, config: RunnableConfig) -> dic
             })
             day_data = json.loads(day_json)
             day_slots = day_data.get("slots", [])
+            if not day_slots:
+                days_without_slots.append(d_iso)
             all_slots.extend(day_slots[:6])
 
         if all_slots:
             all_slots = all_slots[:18]
             day_labels = sorted({_slot_display_date_part(s.get("display", "")) for s in all_slots if s.get("display")})
             day_desc = ", ".join([d for d in day_labels if d]) or "các ngày bạn đã chọn"
+            miss_desc = ", ".join(days_without_slots) if days_without_slots else ""
             msg = (
                 f"Mình đã kiểm tra lịch cho **{day_desc}**. "
                 "Bạn chọn **khung giờ** phù hợp trong các gợi ý bên dưới nhé."
             )
+            if miss_desc:
+                msg += f"\n\n(Lưu ý: hiện chưa có slot cho: {miss_desc})"
             chip_labels = [s.get("display", "").replace(" – ", " ") for s in all_slots if s.get("display")]
             chip_labels = [c.strip() for c in chip_labels if c.strip()]
             return {

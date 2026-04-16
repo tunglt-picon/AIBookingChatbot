@@ -294,19 +294,24 @@ function bindChatControls() {
   });
 }
 
-async function sendMessage(text) {
+async function sendMessage(text, options = {}) {
   const { ChatAPI } = window.DentalApp;
+  const { silent = false } = options;
 
   State.isStreaming = true;
   setSendButtonDisabled(true);
   clsAdd("chat-empty-state", "hidden");
 
-  // Show user message immediately
-  appendMessage({
-    sender_type: "PATIENT_USER",
-    content: text,
-    image_url: null,
-  });
+  // Show user bubble only for free-typed messages.
+  // Clicks on inline option chips should feel like "in-place selection",
+  // not like the system is typing & sending on behalf of the user.
+  if (!silent) {
+    appendMessage({
+      sender_type: "PATIENT_USER",
+      content: text,
+      image_url: null,
+    });
+  }
 
   // Show typing indicator
   const typingId = showTypingIndicator();
@@ -706,15 +711,45 @@ function renderRichText(content) {
 }
 
 function sendQuickReply(text) {
-  const form = $("chat-form");
-  const input = $("chat-input");
-  if (!form || !input || State.isStreaming) return;
+  if (State.isStreaming) return;
   if (!State.currentSessionId) {
     showToast("Chọn hoặc tạo phiên trước.", "warning");
     return;
   }
-  input.value = text;
-  form.requestSubmit();
+  const clean = String(text || "").trim();
+  if (!clean) return;
+  // Silent: click vào option trong bubble AI không tạo bubble "user ảo".
+  sendMessage(clean, { silent: true });
+}
+
+function markChipSelected(btn, labels) {
+  if (!btn) return;
+  const arr = Array.isArray(labels) ? labels : [labels];
+  arr.forEach((l) => {
+    const txt = String(l || "").trim();
+    if (!txt) return;
+    const all = btn.parentElement ? btn.parentElement.querySelectorAll("button") : [];
+    all.forEach((x) => {
+      if (x.textContent.trim() === txt) {
+        x.classList.add("slot-chip-btn--chosen");
+      }
+    });
+  });
+}
+
+function disableUiChipsInBubble(bubbleEl, chosen) {
+  if (!bubbleEl) return;
+  const chosenArr = chosen == null
+    ? []
+    : (Array.isArray(chosen) ? chosen : [chosen]).map((s) => String(s || "").trim()).filter(Boolean);
+  bubbleEl.querySelectorAll(".msg-ui-root button").forEach((b) => {
+    b.disabled = true;
+    b.classList.add("slot-chip-btn--disabled");
+    if (chosenArr.length > 0 && chosenArr.includes(b.textContent.trim())) {
+      b.classList.remove("slot-chip-btn--disabled");
+      b.classList.add("slot-chip-btn--chosen");
+    }
+  });
 }
 
 /** Khung xác nhận: ô giờ + Đồng ý / Hủy / Chọn lại (mở picker tại chỗ). */
@@ -744,12 +779,18 @@ function mountConfirmActionsPanel(panel, bubbleEl) {
   ok.type = "button";
   ok.className = "msg-confirm-btn msg-confirm-btn--ok";
   ok.textContent = "Đồng ý";
-  ok.addEventListener("click", () => sendQuickReply("Đồng ý"));
+  ok.addEventListener("click", () => {
+    disableUiChipsInBubble(bubbleEl, "Đồng ý");
+    sendQuickReply("Đồng ý");
+  });
   const cancel = document.createElement("button");
   cancel.type = "button";
   cancel.className = "msg-confirm-btn msg-confirm-btn--cancel";
   cancel.textContent = "Hủy";
-  cancel.addEventListener("click", () => sendQuickReply("Hủy"));
+  cancel.addEventListener("click", () => {
+    disableUiChipsInBubble(bubbleEl, "Hủy");
+    sendQuickReply("Hủy");
+  });
   const reschedule = document.createElement("button");
   reschedule.type = "button";
   reschedule.className = "msg-confirm-btn msg-confirm-btn--reschedule";
@@ -835,7 +876,8 @@ function mountInlineTimePickerPanel(panel, bubbleEl, apiResponse) {
     btn.className = "slot-chip-btn";
     btn.textContent = label;
     btn.addEventListener("click", () => {
-      sendQuickReply(`Tôi muốn khám lúc ${label}`);
+      disableUiChipsInBubble(bubbleEl, label);
+      sendQuickReply(label);
     });
     row.appendChild(btn);
   });
@@ -855,28 +897,80 @@ function injectAssistantMessageUi(bubbleEl, ui) {
   bubbleEl.querySelectorAll(".msg-ui-root").forEach((n) => n.remove());
 
   const root = document.createElement("div");
-  root.className = "msg-ui-root mt-3 pt-3 border-t border-slate-600/60";
+  const rowEl = bubbleEl.closest(".chat-row");
+  const grouped = rowEl && rowEl.classList.contains("chat-row--grouped");
+  const tpl = ui.template;
 
-  if (ui.template === "day_chips" && Array.isArray(ui.days)) {
+  // Chips/panel nên sát bubble hơn khi group liên tiếp để tránh cảm giác “lỗi layout”.
+  if (tpl === "day_chips" || tpl === "datetime_chips") {
+    root.className = `msg-ui-root ${grouped ? "mt-2" : "mt-2"} ${grouped ? "" : ""}`;
+  } else {
+    root.className = `msg-ui-root ${grouped ? "mt-2 pt-2" : "mt-3 pt-3"} ${
+      tpl === "confirm_actions" ? "" : "border-t border-slate-600/60"
+    }`;
+  }
+
+  if (ui.template === "category_confirm" && Array.isArray(ui.actions)) {
+    const cap = document.createElement("p");
+    cap.className = "text-xs text-slate-400 mb-2";
+    cap.textContent = "Xác nhận nhóm khám";
+    root.appendChild(cap);
+    const row = document.createElement("div");
+    row.className = "flex flex-wrap gap-2 msg-ui-chips";
+    ui.actions
+      .map((t) => String(t).trim())
+      .filter(Boolean)
+      .forEach((label) => {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "slot-chip-btn";
+        btn.textContent = label;
+        btn.addEventListener("click", () => {
+          disableUiChipsInBubble(bubbleEl, label);
+          sendQuickReply(label);
+        });
+        row.appendChild(btn);
+      });
+    root.appendChild(row);
+  } else if (ui.template === "day_chips" && Array.isArray(ui.days)) {
     const labels = ui.days.map((t) => String(t).trim()).filter(Boolean);
     if (labels.length === 0) return;
     const cap = document.createElement("p");
     cap.className = "text-xs text-slate-400 mb-2";
-    cap.textContent = "Chọn ngày bạn rảnh";
+    cap.textContent = "Chọn 1 hoặc nhiều ngày bạn rảnh";
     root.appendChild(cap);
     const row = document.createElement("div");
     row.className = "flex flex-wrap gap-2 msg-ui-chips";
+    const selected = new Set();
     labels.forEach((label) => {
       const btn = document.createElement("button");
       btn.type = "button";
       btn.className = "slot-chip-btn";
       btn.textContent = label;
       btn.addEventListener("click", () => {
-        sendQuickReply(`Tôi rảnh ${label}`);
+        if (selected.has(label)) {
+          selected.delete(label);
+          btn.classList.remove("slot-chip-btn--primary");
+        } else {
+          selected.add(label);
+          btn.classList.add("slot-chip-btn--primary");
+        }
       });
       row.appendChild(btn);
     });
     root.appendChild(row);
+    const action = document.createElement("button");
+    action.type = "button";
+    action.className = "slot-chip-btn slot-chip-btn--primary mt-2";
+    action.textContent = "Xác nhận ngày đã chọn";
+    action.addEventListener("click", () => {
+      if (selected.size === 0) return;
+      const chosen = Array.from(selected);
+      const payload = chosen.join(", ");
+      disableUiChipsInBubble(bubbleEl, chosen);
+      sendQuickReply(payload);
+    });
+    root.appendChild(action);
   } else if (ui.template === "datetime_chips" && Array.isArray(ui.options)) {
     const labels = ui.options.map((t) => String(t).trim()).filter(Boolean);
     if (labels.length === 0) return;
@@ -892,7 +986,8 @@ function injectAssistantMessageUi(bubbleEl, ui) {
       btn.className = "slot-chip-btn";
       btn.textContent = label;
       btn.addEventListener("click", () => {
-        sendQuickReply(`Tôi muốn khám ${label}`);
+        disableUiChipsInBubble(bubbleEl, label);
+        sendQuickReply(label);
       });
       row.appendChild(btn);
     });
@@ -919,7 +1014,8 @@ function injectAssistantMessageUi(bubbleEl, ui) {
       btn.className = "slot-chip-btn";
       btn.textContent = label;
       btn.addEventListener("click", () => {
-        sendQuickReply(`Tôi muốn khám lúc ${label}`);
+        disableUiChipsInBubble(bubbleEl, label);
+        sendQuickReply(label);
       });
       row.appendChild(btn);
     });
@@ -939,4 +1035,8 @@ function injectAssistantMessageUi(bubbleEl, ui) {
   }
 
   bubbleEl.appendChild(root);
+
+  // Đảm bảo timestamp luôn nằm dưới cùng (sau các chips/panel UI).
+  const timeEl = bubbleEl.querySelector(".chat-time");
+  if (timeEl) bubbleEl.appendChild(timeEl);
 }

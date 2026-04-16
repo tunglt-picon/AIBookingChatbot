@@ -227,6 +227,9 @@ const AdminLabAPI = {
   async getMockScheduleSummary() {
     return apiFetch("/admin/lab/mock-schedule-summary");
   },
+  async getSessionState(sessionId) {
+    return apiFetch(`/admin/lab/sessions/${sessionId}/state`);
+  },
 };
 
 /* ── Exports (module-style) ──────────────────────────────────────────────── */

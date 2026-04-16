@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 
 
 _SPECIALIST_SYSTEM = """\
-Bạn là AI tiếp nhận thông tin đặt lịch khám nha khoa qua **chat văn bản**.
+Bạn là AI tiếp nhận thông tin đặt lịch khám nha khoa qua chat.
 
 Nhiệm vụ:
 1. Thu thập thông tin triệu chứng bằng câu hỏi ngắn, cụ thể, mỗi lần MỘT câu.
@@ -45,6 +45,9 @@ Quy tắc:
 - Đặc biệt: nếu phát hiện bệnh nhân nói về **trẻ em** (bé, con, cháu, tuổi nhỏ) → ưu tiên CAT-04.
 - Nếu BN nói "không còn gì thêm", "hết rồi", "đủ rồi" → **chốt JSON ngay**, không hỏi thêm.
 - TUYỆT ĐỐI KHÔNG tư vấn y khoa, không chẩn đoán, không đề xuất điều trị.
+- **TUYỆT ĐỐI KHÔNG hỏi họ tên, số điện thoại, email, địa chỉ, CMND/CCCD, ngày sinh** hay bất kỳ thông tin
+  hành chính/định danh nào. Bệnh nhân đã đăng nhập — hệ thống đã có các thông tin này.
+- Chỉ tập trung vào **triệu chứng & phân loại category**.
 - Khi chốt: viết lời thoại trước, **sau đó** thêm khối ```json``` ở CUỐI.
   Lời thoại nêu rõ **tên category** (tiếng Việt) và hỏi BN xác nhận.
   Nếu 2 category gần giống → nêu cả 2 cho BN chọn.
@@ -126,6 +129,19 @@ def _build_symptoms_summary_when_closing(state: AgentState, closing_message: str
 _VALID_CATEGORY_CODES = frozenset({"CAT-01", "CAT-02", "CAT-03", "CAT-04", "CAT-05"})
 
 
+def _format_prompt_for_log(messages: list) -> str:
+    blocks: list[str] = []
+    for i, msg in enumerate(messages, start=1):
+        role = getattr(msg, "type", type(msg).__name__)
+        name = getattr(msg, "name", "") or "-"
+        content = msg.content if isinstance(getattr(msg, "content", ""), str) else str(getattr(msg, "content", ""))
+        blocks.append(
+            f"[{i}] role={role} name={name}\n"
+            f"{content}"
+        )
+    return "\n\n------------------------------\n\n".join(blocks)
+
+
 def _infer_category_from_text(text: str) -> str:
     from app.domain.dental_cases import DEFAULT_CATEGORY_CODE
 
@@ -193,6 +209,13 @@ async def dental_specialist_node(state: AgentState, config: RunnableConfig) -> d
             "ai_diagnosis": "Không cung cấp tư vấn y khoa qua chat. Cần bác sĩ khám trực tiếp.",
             "specialist_concluded": True,
             "category_code": cat,
+            # Reset booking-related fields to avoid stale state from Redis checkpoints.
+            "available_slots": [],
+            "pending_booking_date_iso": None,
+            "pending_confirmation_slot": None,
+            "booking_confirmed": False,
+            "reservation_id": None,
+            "selected_slot": None,
             "follow_up_count": follow_up_count + 1,
             "extra": {"message_ui": None},
         }
@@ -216,6 +239,11 @@ async def dental_specialist_node(state: AgentState, config: RunnableConfig) -> d
     logger.info(
         "[agent:specialist] LLM invoke start session_id=%s follow_up=%s/%s prompt_msgs=%s",
         state["session_id"], follow_up_count, settings.MAX_FOLLOW_UP_QUESTIONS, len(prompt),
+    )
+    logger.info(
+        "[agent:specialist] PROMPT session_id=%s\n\n%s\n",
+        state["session_id"],
+        _format_prompt_for_log(prompt),
     )
     t0 = time.monotonic()
     response = await llm.ainvoke(prompt, config={"callbacks": callbacks})
@@ -255,5 +283,19 @@ async def dental_specialist_node(state: AgentState, config: RunnableConfig) -> d
         updates["ai_diagnosis"] = "Không tư vấn y khoa qua chat. Vui lòng đến khám trực tiếp."
         updates["category_code"] = _infer_category_from_text(summary_fb)
         logger.info("[specialist] force_conclusion triggered category=%s", updates["category_code"])
+
+    # Reset booking-related fields to avoid stale values coming from Redis checkpoints.
+    # This ensures after triage we always ask patient for day(s) and then time slots.
+    if updates.get("specialist_concluded"):
+        updates.update(
+            {
+                "available_slots": [],
+                "pending_booking_date_iso": None,
+                "pending_confirmation_slot": None,
+                "booking_confirmed": False,
+                "reservation_id": None,
+                "selected_slot": None,
+            }
+        )
 
     return updates
