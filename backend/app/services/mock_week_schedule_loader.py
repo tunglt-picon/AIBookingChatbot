@@ -30,11 +30,6 @@ def load_week_mock_raw() -> dict[str, Any]:
         return json.load(f)
 
 
-def get_mock_week_meta() -> dict[str, Any]:
-    data = load_week_mock_raw()
-    return dict(data.get("meta") or {})
-
-
 def list_mock_date_isos() -> list[str]:
     out: list[str] = []
     for day in load_week_mock_raw().get("ngay") or []:
@@ -150,7 +145,3 @@ def build_week_availability_payload(
         "meta": meta,
         "ngay": days_out,
     }
-
-
-def invalidate_week_mock_cache() -> None:
-    load_week_mock_raw.cache_clear()

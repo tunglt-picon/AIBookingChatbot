@@ -31,10 +31,6 @@ langgraph-checkpoint-redis
 # ── Observability ─────────────────────────────────
 langfuse
 
-# ── Eval Frameworks (placeholders - install when needed) ─
-# deepeval
-# ragas
-
 # ── HTTP Client ──────────────────────────────────
 httpx
 

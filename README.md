@@ -46,7 +46,7 @@
 │  PostgreSQL     │                 │  Mock JSON (dev)        │
 │  users, sessions│                 │  lich_trong_tuan…json   │
 │  messages,      │                 │  triage_symptom_rubric… │
-│  intakes, resv  │                 │  phong_kham_danh_muc…   │
+│  intakes, resv  │                 │                         │
 └─────────────────┘                 └─────────────────────────┘
          ▲
          │
@@ -80,7 +80,6 @@
 | **Root agent** | `GOOGLE_ROOT_MODEL` or Ollama / OpenAI / compatible | Intent + booking UX |
 | **Specialist agent** | `GOOGLE_SPECIALIST_MODEL` or same stack | Symptom intake + `category_code` (rubric in `data/mock/`) |
 | **Observability** | Langfuse | Trace LLM calls |
-| **Eval (stub)** | DeepEval / Ragas | Placeholders, ready to wire |
 | **Auth** | JWT (python-jose) + bcrypt | Stateless |
 | **Frontend** | HTML + Tailwind + vanilla JS | No build step |
 | **Containers** | Docker + Docker Compose | Dev and prod |
@@ -158,10 +157,9 @@ AIBookingChatbot/
 │   │   │   └── triage_rubric_loader.py
 │   │   │
 │   │   └── observability/
-│   │       ├── langfuse_client.py   # Langfuse tracing wrapper
-│   │       └── eval_placeholders.py # DeepEval/Ragas stubs
+│   │       └── langfuse_client.py   # Langfuse tracing wrapper
 │   │
-│   ├── data/mock/               # Mock data (lịch trống, symptom rubric, danh mục)
+│   ├── data/mock/               # Mock data (lich_trong_tuan_trong_vi + triage_symptom_rubric_vi)
 │   ├── scripts/                 # generate_lich_trong_tuan_json.py (sinh lịch mock)
 │   ├── uploads/                 # Static uploads dir (gitignored)
 │   ├── requirements.txt
@@ -511,35 +509,7 @@ Traces include session id (thread id), node spans, LLM calls, and tool calls suc
 
 ---
 
-## 11. Quality evaluation (Eval)
-
-See `backend/app/observability/eval_placeholders.py` for DeepEval/Ragas **stubs**. They are **not** invoked from the chat pipeline until you wire them yourself.
-
-### Example DeepEval metric
-
-```python
-from deepeval.metrics import GEval
-from deepeval.test_case import LLMTestCase, LLMTestCaseParams
-
-metric = GEval(
-    name="SymptomCoverage",
-    criteria="Does extracted_symptoms cover everything the patient mentioned?",
-    evaluation_params=[LLMTestCaseParams.INPUT, LLMTestCaseParams.ACTUAL_OUTPUT],
-)
-```
-
-### Tracked metrics (planned)
-
-| Metric | Description |
-|--------|-------------|
-| `symptom_extraction_accuracy` | Symptom capture quality |
-| `diagnosis_relevance` | Alignment of intake summary with symptoms |
-| `booking_success_rate` | Sessions ending in a booking |
-| `follow_up_efficiency` | Avg follow-ups before conclusion |
-
----
-
-## 12. Production extensions
+## 11. Production extensions
 
 ### Alembic (DB migrations)
 
@@ -561,7 +531,7 @@ alembic upgrade head
 
 ---
 
-## 13. Troubleshooting
+## 12. Troubleshooting
 
 ### Database connection error
 

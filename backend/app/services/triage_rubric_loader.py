@@ -21,10 +21,6 @@ def _rubric_path() -> Path:
     return Path(__file__).resolve().parents[2] / "data" / "mock" / "triage_symptom_rubric_vi.json"
 
 
-def invalidate_triage_rubric_cache() -> None:
-    load_triage_rubric_raw.cache_clear()
-
-
 @lru_cache(maxsize=1)
 def load_triage_rubric_raw() -> dict[str, Any]:
     path = _rubric_path()
@@ -38,11 +34,6 @@ def load_triage_rubric_raw() -> dict[str, Any]:
 def get_category_entries() -> list[dict[str, Any]]:
     data = load_triage_rubric_raw()
     return list(data.get("categories") or [])
-
-
-def get_symptom_matrix() -> list[dict[str, Any]]:
-    data = load_triage_rubric_raw()
-    return list(data.get("symptom_matrix") or [])
 
 
 def format_rubric_prompt_excerpt(

@@ -7,31 +7,6 @@ from sqlalchemy.orm import selectinload
 from app.models.session import BookingChatSession, BookingChatMessage, SenderType, SessionStatus
 
 
-async def get_or_create_active_session(
-    db: AsyncSession, patient_user_id: int
-) -> BookingChatSession:
-    """Return the most recent PROCESSING session, or create a new one."""
-    result = await db.execute(
-        select(BookingChatSession)
-        .where(
-            BookingChatSession.patient_user_id == patient_user_id,
-            BookingChatSession.status == SessionStatus.PROCESSING,
-        )
-        .order_by(BookingChatSession.created_at.desc())
-        .limit(1)
-    )
-    session = result.scalar_one_or_none()
-    if session is None:
-        session = BookingChatSession(
-            patient_user_id=patient_user_id,
-            status=SessionStatus.PROCESSING,
-        )
-        db.add(session)
-        await db.commit()
-        await db.refresh(session)
-    return session
-
-
 async def create_session(db: AsyncSession, patient_user_id: int) -> BookingChatSession:
     session = BookingChatSession(
         patient_user_id=patient_user_id,

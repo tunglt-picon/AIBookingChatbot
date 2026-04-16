@@ -78,12 +78,3 @@ def get_langfuse_callback(
         return [per_request]
     except Exception:
         return [handler]
-
-
-def flush_langfuse():
-    """Call at shutdown to ensure all events are sent."""
-    if _langfuse_handler:
-        try:
-            _langfuse_handler.flush()
-        except Exception:
-            pass

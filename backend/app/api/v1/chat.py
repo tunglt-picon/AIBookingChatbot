@@ -23,7 +23,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import settings
 from app.database import get_db
 from app.models.session import SenderType, SessionStatus
-from app.schemas.chat import MessageResponse, SessionResponse, SessionWithMessages
+from app.schemas.chat import SessionResponse, SessionWithMessages
 from app.services import auth_service, chat_service
 logger = logging.getLogger(__name__)
 router = APIRouter()

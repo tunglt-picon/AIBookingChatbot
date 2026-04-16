@@ -648,7 +648,9 @@ async def confirm_booking_node(state: AgentState, config: RunnableConfig) -> dic
         # Không fallback theo state cũ để tránh việc Redis checkpoint làm bot nhảy nhầm ngày (vd: tự đưa Thứ 2).
         if not date_hints:
             msg = (
-                "Trước khi chọn giờ, bạn vui lòng cho mình biết **bạn rảnh vào thứ mấy** "
+                "Trước khi chọn giờ, bạn vui lòng cho mình biết "
+                "**bạn rảnh vào thứ mấy** "
+                "(có thể chọn **1 hoặc nhiều ngày**, ví dụ: *Thứ 3, Thứ 5*)."
             )
             return {
                 "messages": [AIMessage(content=msg, name="root_agent")],

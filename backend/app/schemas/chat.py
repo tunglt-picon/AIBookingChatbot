@@ -6,10 +6,6 @@ from pydantic import BaseModel
 from app.models.session import SenderType, SessionStatus
 
 
-class SessionCreate(BaseModel):
-    pass  # session is implicitly created per-patient when needed
-
-
 class SessionResponse(BaseModel):
     id: int
     patient_user_id: int
@@ -33,22 +29,3 @@ class MessageResponse(BaseModel):
 
 class SessionWithMessages(SessionResponse):
     messages: list[MessageResponse] = []
-
-
-# SSE event types streamed back to the client
-class SSETokenEvent(BaseModel):
-    type: str = "token"
-    content: str
-
-
-class SSEStatusEvent(BaseModel):
-    type: str = "status"
-    message: str
-
-
-class SSEDoneEvent(BaseModel):
-    type: str = "done"
-    session_id: int
-    agent: str  # "root" | "specialist"
-    booking: Optional[dict] = None
-    intake: Optional[dict] = None

@@ -722,21 +722,6 @@ function sendQuickReply(text) {
   sendMessage(clean, { silent: true });
 }
 
-function markChipSelected(btn, labels) {
-  if (!btn) return;
-  const arr = Array.isArray(labels) ? labels : [labels];
-  arr.forEach((l) => {
-    const txt = String(l || "").trim();
-    if (!txt) return;
-    const all = btn.parentElement ? btn.parentElement.querySelectorAll("button") : [];
-    all.forEach((x) => {
-      if (x.textContent.trim() === txt) {
-        x.classList.add("slot-chip-btn--chosen");
-      }
-    });
-  });
-}
-
 function disableUiChipsInBubble(bubbleEl, chosen) {
   if (!bubbleEl) return;
   const chosenArr = chosen == null
