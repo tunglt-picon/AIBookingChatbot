@@ -12,6 +12,7 @@ import json
 import logging
 import re
 import time
+import unicodedata
 from langchain_core.messages import AIMessage, SystemMessage
 from langchain_core.runnables import RunnableConfig
 
@@ -29,7 +30,7 @@ _SPECIALIST_SYSTEM = """\
 Bạn là AI tiếp nhận thông tin đặt lịch khám nha khoa qua chat.
 
 Nhiệm vụ:
-1. Thu thập thông tin triệu chứng bằng câu hỏi ngắn, cụ thể, mỗi lần MỘT câu.
+1. Thu thập thông tin triệu chứng bằng câu hỏi ngắn, cụ thể; có thể gộp 1-3 câu trong cùng một lượt khi cần làm rõ nhanh.
 2. Khi đủ thông tin hoặc hết lượt hỏi → chốt thông tin để chuyển sang đặt lịch.
 3. **Phân loại nhu cầu khám** vào đúng 1 trong 5 category bên dưới (chỉ để xếp **thời lượng & khung giờ** — KHÔNG thay chẩn đoán bác sĩ).
 
@@ -70,6 +71,9 @@ Quy tắc:
 
 Thông tin hiện tại:
   - Triệu chứng đã thu thập: {symptoms_so_far}
+  - Category nghi ngờ hiện tại: {suspected_category}
+  - Câu hỏi ưu tiên từ rubric lượt này:
+{targeted_missing_questions}
   - Số câu hỏi đã hỏi: {follow_up_count}/{max_follow_ups}
   - Bắt buộc kết luận: {force_conclusion}
 """
@@ -230,6 +234,140 @@ def _resolve_category(structured: dict | None, state: AgentState) -> str:
     return _infer_category_from_text(summary)
 
 
+def _normalize_for_match(text: str) -> str:
+    s = (text or "").lower()
+    s = unicodedata.normalize("NFD", s)
+    s = "".join(ch for ch in s if unicodedata.category(ch) != "Mn")
+    s = s.replace("đ", "d")
+    return re.sub(r"\s+", " ", s).strip()
+
+
+def _slot_question_topic(question: str) -> str:
+    q = _normalize_for_match(question)
+    if any(k in q for k in ("vi tri", "ham tren", "ham duoi", "phia truoc", "trong cung")):
+        return "location"
+    if any(k in q for k in ("bao lau", "tu bao lau", "thoi gian", "keo dai")):
+        return "duration"
+    if any(k in q for k in ("nong/lanh", "nong", "lanh", "ngot", "kich thich", "an/uong", "tu phat")):
+        return "trigger"
+    if any(k in q for k in ("sung", "mu", "sot", "sung ma", "sung nuou")):
+        return "swelling_fever"
+    if any(k in q for k in ("thuoc giam dau", "da uong thuoc", "co bot khong")):
+        return "medication_response"
+    if any(k in q for k in ("da tung tram", "tram", "chua tuy", "x-quang", "x quang", "dieu tri do dang")):
+        return "treatment_history"
+    if any(k in q for k in ("muc do", "1-10", "1 den 10")):
+        return "severity"
+    if any(k in q for k in ("be bao nhieu tuoi", "bao nhieu tuoi", "tre em", "be")):
+        return "age"
+    if any(k in q for k in ("rang sua", "rang vinh vien")):
+        return "tooth_type"
+    if any(k in q for k in ("hop tac", "khong hop tac")):
+        return "cooperation"
+    if any(k in q for k in ("chong dong", "benh nen", "mang thai")):
+        return "comorbidity"
+    if any(k in q for k in ("kham nha khoa gan nhat", "lan kham")):
+        return "last_visit"
+    return "other"
+
+
+_TOPIC_KEYWORDS: dict[str, tuple[str, ...]] = {
+    "location": ("vi tri", "rang so", "ham tren", "ham duoi", "rang trong cung", "phia truoc", "phia sau"),
+    "duration": ("bao lau", "tu qua", "tu hom", "keo dai", "duoc may ngay", "may tuan"),
+    "trigger": ("lanh", "nong", "ngot", "nhai", "an uong", "tu phat", "kich thich"),
+    "swelling_fever": ("sung", "mu", "sot", "sung ma", "sung nuou", "sung mat"),
+    "medication_response": ("thuoc giam dau", "da uong", "uống thuoc", "co bot", "do bot"),
+    "treatment_history": ("da tram", "tram", "chua tuy", "nho rang", "x quang", "dieu tri", "rang khon"),
+    "severity": ("muc do", "/10", "thang diem", "rat dau", "dau du doi"),
+    "age": ("tuoi", "be", "chau", "tre"),
+    "tooth_type": ("rang sua", "rang vinh vien"),
+    "cooperation": ("hop tac", "khong cho kham", "so nha si"),
+    "comorbidity": ("benh nen", "mang thai", "chong dong", "tieu duong", "huyet ap"),
+    "last_visit": ("lan kham", "kham gan nhat", "dinh ky"),
+}
+
+
+def _topic_is_covered(topic: str, seen_blob: str) -> bool:
+    kws = _TOPIC_KEYWORDS.get(topic, ())
+    return any(k in seen_blob for k in kws)
+
+
+def _build_targeted_missing_questions_filtered(
+    category_code: str | None,
+    state: AgentState,
+    last_human: str,
+    *,
+    limit: int = 3,
+) -> str:
+    if not category_code:
+        return "  - (chưa xác định)"
+    from app.services.triage_rubric_loader import get_category_entries
+
+    code = str(category_code).strip().upper()
+    if code not in _VALID_CATEGORY_CODES:
+        return "  - (chưa xác định)"
+
+    # Gom ngữ cảnh đã biết để tránh hỏi trùng.
+    seen_parts: list[str] = []
+    for msg in state.get("messages") or []:
+        if getattr(msg, "type", None) != "human":
+            continue
+        c = msg.content if isinstance(msg.content, str) else str(msg.content or "")
+        if c.strip():
+            seen_parts.append(c)
+    if state.get("symptoms_summary"):
+        seen_parts.append(str(state["symptoms_summary"]))
+    if last_human.strip():
+        seen_parts.append(last_human.strip())
+    seen_blob = _normalize_for_match(" | ".join(seen_parts))
+
+    for cat in get_category_entries():
+        c = str(cat.get("code") or "").strip().upper()
+        if c != code:
+            continue
+        slots = [str(s).strip() for s in (cat.get("typical_missing_slots_to_ask") or []) if str(s).strip()]
+        if not slots:
+            return "  - (không có trong rubric)"
+
+        picked: list[str] = []
+        fallback: list[str] = []
+        for q in slots:
+            topic = _slot_question_topic(q)
+            if topic == "other":
+                fallback.append(q)
+                continue
+            if not _topic_is_covered(topic, seen_blob):
+                picked.append(q)
+            else:
+                fallback.append(q)
+
+        if len(picked) < limit:
+            for q in fallback:
+                if q not in picked:
+                    picked.append(q)
+                if len(picked) >= limit:
+                    break
+        if not picked:
+            picked = slots[: max(1, limit)]
+
+        return "\n".join(f"  - {q}" for q in picked[: max(1, limit)])
+    return "  - (không có trong rubric)"
+
+
+def _suspected_category_for_follow_up(state: AgentState, last_human: str) -> str | None:
+    state_cat = state.get("category_code")
+    if isinstance(state_cat, str) and state_cat.strip().upper() in _VALID_CATEGORY_CODES:
+        return state_cat.strip().upper()
+
+    combined = " ".join(
+        p for p in [str(state.get("symptoms_summary") or "").strip(), (last_human or "").strip()] if p
+    ).strip()
+    if not combined:
+        return None
+    inferred = _infer_category_from_text(combined)
+    return inferred if inferred in _VALID_CATEGORY_CODES else None
+
+
 async def dental_specialist_node(state: AgentState, config: RunnableConfig) -> dict:
     llm = get_specialist_llm()
     callbacks = get_langfuse_callback(config)
@@ -283,8 +421,17 @@ async def dental_specialist_node(state: AgentState, config: RunnableConfig) -> d
             "extra": {"message_ui": None},
         }
 
+    suspected_category = _suspected_category_for_follow_up(state, last_human)
+    targeted_questions = _build_targeted_missing_questions_filtered(
+        suspected_category,
+        state,
+        last_human,
+        limit=3,
+    )
     system_content = _SPECIALIST_SYSTEM.format(
         symptoms_so_far=state.get("symptoms_summary") or "chưa có",
+        suspected_category=suspected_category or "chưa xác định",
+        targeted_missing_questions=targeted_questions,
         follow_up_count=follow_up_count,
         max_follow_ups=settings.MAX_FOLLOW_UP_QUESTIONS,
         force_conclusion=force_conclusion,
@@ -294,6 +441,12 @@ async def dental_specialist_node(state: AgentState, config: RunnableConfig) -> d
         system_content += (
             "\n\n**BẮT BUỘC (lượt này):** Đã đạt giới hạn câu hỏi. "
             "KHÔNG hỏi thêm. Viết cảm ơn ngắn rồi thêm ```json``` với đủ trường."
+        )
+    else:
+        system_content += (
+            "\n\n**BẮT BUỘC (lượt follow-up này):** "
+            "Khi chưa kết luận, hãy hỏi theo danh sách 'Câu hỏi ưu tiên từ rubric lượt này' ở trên. "
+            "Ít nhất dùng 1 ý; có thể gộp 2-3 câu ngắn trong cùng một tin nhắn."
         )
 
     history = list(state["messages"])

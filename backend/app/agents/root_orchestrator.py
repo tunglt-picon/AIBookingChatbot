@@ -142,6 +142,44 @@ def _slot_display_date_part(display: str) -> str:
     return m.group(1).strip() if m else display.strip()
 
 
+def _group_slots_for_datetime_chips(slots: list[dict]) -> list[dict[str, Any]]:
+    """
+    Gom slot theo ngày để UI chỉ hiển thị giờ theo từng thứ; mỗi slot giữ `reply` = display đầy đủ để gửi lại backend.
+    """
+    from collections import defaultdict
+
+    by_iso: dict[str, list[dict]] = defaultdict(list)
+    for s in slots:
+        if not isinstance(s, dict):
+            continue
+        dt = s.get("datetime_str")
+        if not dt:
+            continue
+        iso = _date_iso_from_slot_datetime(dt)
+        if not iso:
+            continue
+        by_iso[iso].append(s)
+
+    out: list[dict[str, Any]] = []
+    for iso in sorted(by_iso.keys()):
+        day_slots = by_iso[iso][:6]
+        first = day_slots[0]
+        date_label = _slot_display_date_part(first.get("display", "")) or iso
+        items: list[dict[str, str]] = []
+        for s in day_slots:
+            disp = s.get("display") or ""
+            tm = (s.get("time_hm") or "").strip()
+            if not tm:
+                m = re.search(r"\b(\d{1,2}:\d{2})\b", disp)
+                tm = m.group(1) if m else ""
+            if not tm:
+                continue
+            items.append({"time": tm, "reply": disp})
+        if items:
+            out.append({"date_label": date_label, "slots": items})
+    return out
+
+
 def _time_labels_from_slots(slots: list) -> list[str]:
     seen: set[str] = set()
     out: list[str] = []
@@ -792,9 +830,11 @@ async def confirm_booking_node(state: AgentState, config: RunnableConfig) -> dic
     # Parse requested time
     hm = _parse_first_time_hm(user_text)
     date_hints = infer_date_strs_from_user_text(user_text)
-    date_iso = _booking_date_iso_from_state(state)
+    # Ưu tiên ngày có trong chính message của user (đặc biệt khi click datetime_chips
+    # gửi lại "Thứ X, dd/mm – HH:MM ..."). Nếu không có mới fallback theo state.
+    date_iso = infer_date_str_from_user_text(user_text)
     if not date_iso:
-        date_iso = infer_date_str_from_user_text(user_text)
+        date_iso = _booking_date_iso_from_state(state)
 
     if hm is None:
         # User hiện tại chưa cung cấp giờ => bắt buộc phải cung cấp "thứ mấy" trong message này.
@@ -839,8 +879,7 @@ async def confirm_booking_node(state: AgentState, config: RunnableConfig) -> dic
             )
             if miss_desc:
                 msg += f"\n\n(Lưu ý: hiện chưa có slot cho: {miss_desc})"
-            chip_labels = [s.get("display", "").replace(" – ", " ") for s in all_slots if s.get("display")]
-            chip_labels = [c.strip() for c in chip_labels if c.strip()]
+            chip_groups = _group_slots_for_datetime_chips(all_slots)
             return {
                 "available_slots": all_slots,
                 "pending_booking_date_iso": None,
@@ -852,7 +891,7 @@ async def confirm_booking_node(state: AgentState, config: RunnableConfig) -> dic
                 "extra": {
                     "message_ui": {
                         "template": "datetime_chips",
-                        "options": chip_labels[:12],
+                        "groups": chip_groups,
                         "category_code": state.get("category_code"),
                     },
                 },

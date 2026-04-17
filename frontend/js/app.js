@@ -521,7 +521,7 @@ function appendMessage(msg) {
     avatar.textContent = "BN";
   } else {
     avatar.className += " chat-avatar--assistant text-white";
-    avatar.textContent = "SC";
+    avatar.textContent = "CS";
   }
   if (grouped) avatar.classList.add("chat-avatar--ghost");
 
@@ -573,7 +573,7 @@ function appendStreamingMessage() {
   const avatar = document.createElement("div");
   avatar.className =
     "chat-avatar chat-avatar--assistant flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white";
-  avatar.textContent = "SC";
+  avatar.textContent = "CS";
   if (grouped) avatar.classList.add("chat-avatar--ghost");
 
   const bubble = document.createElement("div");
@@ -849,7 +849,8 @@ function disableUiChipsInBubble(bubbleEl, chosen, options = {}) {
   bubbleEl.querySelectorAll(".msg-ui-root button").forEach((b) => {
     b.disabled = true;
     b.classList.add("slot-chip-btn--disabled");
-    if (chosenArr.length > 0 && chosenArr.includes(b.textContent.trim())) {
+    const key = (b.dataset.replyText || "").trim() || b.textContent.trim();
+    if (chosenArr.length > 0 && chosenArr.some((c) => c === key || c === b.textContent.trim())) {
       b.classList.remove("slot-chip-btn--disabled");
       b.classList.add("slot-chip-btn--chosen");
     }
@@ -1113,27 +1114,65 @@ function injectAssistantMessageUi(bubbleEl, ui) {
       sendQuickReply(payload);
     });
     root.appendChild(action);
-  } else if (ui.template === "datetime_chips" && Array.isArray(ui.options)) {
-    const labels = ui.options.map((t) => String(t).trim()).filter(Boolean);
-    if (labels.length === 0) return;
+  } else if (ui.template === "datetime_chips") {
+    const hasGroups = Array.isArray(ui.groups) && ui.groups.length > 0;
+    const flatOpts = Array.isArray(ui.options) ? ui.options.map((t) => String(t).trim()).filter(Boolean) : [];
+    const hasFlat = flatOpts.length > 0;
+    if (!hasGroups && !hasFlat) return;
+
     const cap = document.createElement("p");
     cap.className = "text-xs text-slate-400 mb-2";
     cap.textContent = "Chọn khung giờ phù hợp";
     root.appendChild(cap);
-    const row = document.createElement("div");
-    row.className = "flex flex-wrap gap-2 msg-ui-chips";
-    labels.forEach((label) => {
-      const btn = document.createElement("button");
-      btn.type = "button";
-      btn.className = "slot-chip-btn";
-      btn.textContent = label;
-      btn.addEventListener("click", () => {
-        disableUiChipsInBubble(bubbleEl, label);
-        sendQuickReply(label);
+
+    if (hasGroups) {
+      ui.groups.forEach((g) => {
+        const dayLabel = String(g?.date_label || "").trim();
+        const slotItems = Array.isArray(g?.slots) ? g.slots : [];
+        if (!dayLabel || slotItems.length === 0) return;
+        const sub = document.createElement("div");
+        sub.className = "mb-3 last:mb-0";
+        const h = document.createElement("p");
+        h.className = "text-[11px] font-medium text-slate-300 mb-1.5";
+        h.textContent = dayLabel;
+        sub.appendChild(h);
+        const row = document.createElement("div");
+        row.className = "flex flex-wrap gap-2 msg-ui-chips";
+        slotItems.forEach((item) => {
+          const reply = String(item?.reply || "").trim();
+          const timeLabel = String(item?.time || "").trim();
+          if (!reply || !timeLabel) return;
+          const btn = document.createElement("button");
+          btn.type = "button";
+          btn.className = "slot-chip-btn";
+          btn.textContent = timeLabel;
+          btn.dataset.replyText = reply;
+          btn.title = reply;
+          btn.addEventListener("click", () => {
+            disableUiChipsInBubble(bubbleEl, reply);
+            sendQuickReply(reply);
+          });
+          row.appendChild(btn);
+        });
+        sub.appendChild(row);
+        root.appendChild(sub);
       });
-      row.appendChild(btn);
-    });
-    root.appendChild(row);
+    } else {
+      const row = document.createElement("div");
+      row.className = "flex flex-wrap gap-2 msg-ui-chips";
+      flatOpts.forEach((label) => {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "slot-chip-btn";
+        btn.textContent = label;
+        btn.addEventListener("click", () => {
+          disableUiChipsInBubble(bubbleEl, label);
+          sendQuickReply(label);
+        });
+        row.appendChild(btn);
+      });
+      root.appendChild(row);
+    }
   } else if (ui.template === "time_chips" && Array.isArray(ui.times)) {
     if (ui.category_code) {
       bubbleEl.dataset.confirmCategoryCode = String(ui.category_code).trim();
