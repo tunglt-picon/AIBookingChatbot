@@ -708,7 +708,7 @@ async function inspectSessionState() {
       data = await adminApi.getSessionState(sid);
     } else {
       // Fallback for stale cached api.js in browser.
-      const base = window.APP_CONFIG?.apiBase ?? "http://localhost:8000/api/v1";
+      const base = window.DentalApp?.ApiConfig?.apiBase ?? "http://127.0.0.1:8000/api/v1";
       const token = window.DentalApp?.Auth?.getToken?.();
       const headers = token ? { Authorization: `Bearer ${token}` } : {};
       const res = await fetch(`${base}/admin/lab/sessions/${sid}/state`, { headers });

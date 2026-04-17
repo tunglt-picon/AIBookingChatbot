@@ -1,9 +1,45 @@
 /**
  * API client – thin wrapper around the FastAPI backend.
- * All endpoints communicate with BASE_URL (configure in window.APP_CONFIG or default).
+ *
+ * `window.APP_CONFIG`:
+ * - apiBase: URL đầy đủ tới prefix `/api/v1`, hoặc `"auto"` / bỏ qua để tự suy từ `window.location` (LAN).
+ * - apiPort: cổng backend (mặc định 8000), chỉ dùng khi apiBase là auto.
  */
 
-const API_BASE = window.APP_CONFIG?.apiBase ?? "http://localhost:8000/api/v1";
+function resolveRuntimeApiBase() {
+  const cfg = window.APP_CONFIG || {};
+  const explicit = cfg.apiBase;
+  if (typeof explicit === "string") {
+    const t = explicit.trim();
+    if (t && t !== "auto") {
+      return t.replace(/\/$/, "");
+    }
+  }
+  const portRaw = cfg.apiPort != null ? String(cfg.apiPort) : "8000";
+  const port = portRaw.trim() || "8000";
+  const loc = window.location;
+  const host = loc.hostname;
+  if (!host) {
+    return `http://127.0.0.1:${port}/api/v1`;
+  }
+  const scheme = loc.protocol === "https:" ? "https" : "http";
+  return `${scheme}://${host}:${port}/api/v1`;
+}
+
+function apiBaseToBackendOrigin(apiBase) {
+  try {
+    const base = apiBase.replace(/\/$/, "");
+    if (base.endsWith("/api/v1")) {
+      return base.slice(0, -"/api/v1".length) || new URL(base + "/").origin;
+    }
+    return new URL(base.endsWith("/") ? base : `${base}/`).origin;
+  } catch {
+    return "http://127.0.0.1:8000";
+  }
+}
+
+const API_BASE = resolveRuntimeApiBase();
+const BACKEND_ORIGIN = apiBaseToBackendOrigin(API_BASE);
 
 /* ── Token storage ──────────────────────────────────────────────────────── */
 
@@ -234,4 +270,12 @@ const AdminLabAPI = {
 
 /* ── Exports (module-style) ──────────────────────────────────────────────── */
 
-window.DentalApp = { Auth, AuthAPI, ChatAPI, ScheduleAPI, AdminLabAPI, APIError };
+window.DentalApp = {
+  Auth,
+  AuthAPI,
+  ChatAPI,
+  ScheduleAPI,
+  AdminLabAPI,
+  APIError,
+  ApiConfig: { apiBase: API_BASE, backendOrigin: BACKEND_ORIGIN },
+};

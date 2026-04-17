@@ -230,8 +230,10 @@ python3 -m venv .venv
 source .venv/bin/activate       # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 
-uvicorn app.main:app --reload --port 8000
+uvicorn app.main:app --host 0.0.0.0 --reload --port 8000
 ```
+
+`--host 0.0.0.0` để các máy khác trong LAN trỏ tới `http://<IP-máy-bạn>:8000`. Nếu chỉ dev một máy có thể dùng `--host 127.0.0.1`.
 
 Tables are created automatically on first startup. Redis indexes are created by `langgraph-checkpoint-redis` on first graph compilation.
 
@@ -241,9 +243,12 @@ Open `frontend/index.html` with **Live Server** (VS Code) or:
 
 ```bash
 cd frontend
-python3 -m http.server 5500
+python3 -m http.server 5500 --bind 0.0.0.0
 # Open: http://localhost:5500
+# Máy khác cùng Wi‑Fi: http://<IP-LAN-máy-dev>:5500 — API tự trỏ tới cùng IP, cổng 8000
 ```
+
+Frontend dùng `window.APP_CONFIG.apiBase: "auto"` (mặc định): khi mở bằng IP LAN, request login/API đi tới `http://<cùng-hostname>:8000`, không còn nhầm `localhost` trên máy khách. Nếu cần URL API cố định (production), đặt `apiBase` đầy đủ trong `index.html` / `admin.html`.
 
 ### Docker Compose (all-in-one)
 
@@ -477,11 +482,11 @@ Single-page app under `frontend/` (no build step).
 | **Quick actions** | Suggested prompts |
 | **Responsive** | Mobile-friendly |
 
-Set the API base in `frontend/index.html`:
+Set the API base in `frontend/index.html` (mặc định `apiBase: "auto"` theo hostname trang; production có thể set URL tuyệt đối):
 
 ```html
 <script>
-  window.APP_CONFIG = { apiBase: "http://localhost:8000/api/v1" };
+  window.APP_CONFIG = { apiBase: "auto", apiPort: "8000" };
 </script>
 ```
 

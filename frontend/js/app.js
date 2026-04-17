@@ -419,7 +419,7 @@ function appendMessage(msg) {
     const img = document.createElement("img");
     img.src = msg.image_url.startsWith("blob:")
       ? msg.image_url
-      : `http://localhost:8000${msg.image_url}`;
+      : `${window.DentalApp?.ApiConfig?.backendOrigin ?? "http://127.0.0.1:8000"}${msg.image_url}`;
     img.className =
       "rounded-xl max-w-full mb-2 cursor-pointer hover:opacity-90 transition";
     img.style.maxHeight = "200px";
