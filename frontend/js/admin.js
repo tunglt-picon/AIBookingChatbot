@@ -539,14 +539,43 @@ function buildNextStatePatch(currentPatch, currentMessage, updates) {
   return next;
 }
 
+/**
+ * Chỉ giữ các khóa lab cần để chạy lượt kế của dental_specialist.
+ * Bỏ last_agent_message, current_agent, extra, reset booking… (API trả đủ graph state).
+ */
+function pickDentalSpecialistLabPatch(patch) {
+  const order = [
+    "follow_up_count",
+    "symptoms_summary",
+    "specialist_concluded",
+    "category_code",
+    "ai_diagnosis",
+    "messages",
+  ];
+  const out = {};
+  for (const k of order) {
+    if (Object.prototype.hasOwnProperty.call(patch, k)) {
+      out[k] = patch[k];
+    }
+  }
+  return out;
+}
+
 function applyAgentRunAutoFill(pack, resultData) {
   const statePatchEl = $("state_patch");
   if (!statePatchEl) return;
   const updates = resultData?.updates;
   if (!updates || typeof updates !== "object") return;
-  const nextPatch = buildNextStatePatch(pack.body.state_patch || {}, pack.body.message || "", updates);
+  let nextPatch = buildNextStatePatch(pack.body.state_patch || {}, pack.body.message || "", updates);
+  if (pack.body?.agent === "dental_specialist") {
+    nextPatch = pickDentalSpecialistLabPatch(nextPatch);
+  }
   statePatchEl.value = JSON.stringify(nextPatch, null, 2);
-  labFlash("Đã tự động điền state_patch cho lượt kế tiếp.");
+  const hint =
+    pack.body?.agent === "dental_specialist"
+      ? "Đã điền state_patch (lượt 2+: follow_up_count, symptoms_summary khi có, messages…)."
+      : "Đã tự động điền state_patch cho lượt kế tiếp.";
+  labFlash(hint);
 }
 
 function _mockEl(tag, className, text) {
