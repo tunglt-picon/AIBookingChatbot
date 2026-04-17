@@ -200,7 +200,7 @@ def _date_iso_from_slot_datetime(datetime_str: str | None) -> str:
 
 
 def _build_day_chips_payload() -> dict[str, Any]:
-    labels = ["Thứ 2", "Thứ 3", "Thứ 4", "Thứ 5", "Thứ 6", "Ngày mai"]
+    labels = ["Thứ 2", "Thứ 3", "Thứ 4", "Thứ 5", "Thứ 6"]
     return {"template": "day_chips", "days": labels}
 
 
@@ -210,6 +210,48 @@ def _build_category_confirm_payload(category_code: str | None) -> dict[str, Any]
         "category_code": category_code or "",
         "actions": ["Đúng nhóm này", "Nhóm khác"],
     }
+
+
+def _build_category_picker_payload(disabled_code: str | None) -> dict[str, Any]:
+    from app.domain.dental_cases import category_label_vi, category_short_description_vi
+
+    codes = ["CAT-01", "CAT-02", "CAT-03", "CAT-04", "CAT-05"]
+    disabled = (disabled_code or "").strip().upper()
+    options: list[dict[str, Any]] = []
+    for code in codes:
+        options.append(
+            {
+                "code": code,
+                "label": category_label_vi(code),
+                "description": category_short_description_vi(code),
+                "disabled": code == disabled,
+            }
+        )
+    return {
+        "template": "category_picker",
+        "disabled_code": disabled,
+        "options": options,
+    }
+
+
+def _parse_category_code_from_text(text: str) -> str | None:
+    low = (text or "").lower().strip()
+    if not low:
+        return None
+    m = re.search(r"\bcat\s*[- ]?\s*(0?[1-5])\b", low)
+    if m:
+        return f"CAT-0{int(m.group(1))}"
+    mapping = {
+        "CAT-01": ("cat-01", "trám", "phục hồi thẩm mỹ", "sâu răng", "me rang"),
+        "CAT-02": ("cat-02", "điều trị tủy", "noi nha", "nội nha", "chua tuy", "chữa tủy"),
+        "CAT-03": ("cat-03", "nhổ răng", "tiểu phẫu", "tieu phau", "răng khôn", "rang khon"),
+        "CAT-04": ("cat-04", "trẻ em", "tre em", "răng sữa", "rang sua", "nhi đồng"),
+        "CAT-05": ("cat-05", "tổng quát", "tong quat", "x-quang", "x quang"),
+    }
+    for code, keys in mapping.items():
+        if any(k in low for k in keys):
+            return code
+    return None
 
 
 def _looks_like_category_count_question(text: str) -> bool:
@@ -287,20 +329,44 @@ async def classify_intent_node(state: AgentState, config: RunnableConfig) -> dic
 
     last_human = _last_human_text(state)
 
+    if state.get("pending_category_selection"):
+        picked = _parse_category_code_from_text(last_human)
+        if picked:
+            logger.info(
+                "[classify_intent] manual category selected=%s -> select_slot session_id=%s",
+                picked,
+                state["session_id"],
+            )
+            return {
+                "intent": "select_slot",
+                "current_agent": "root",
+                "skip_root_respond": False,
+                "pending_category_selection": False,
+                "pending_category_confirmation": False,
+                "category_code": picked,
+                "available_slots": [],
+                "pending_booking_date_iso": None,
+                "pending_confirmation_slot": None,
+                "selected_slot": None,
+                "booking_confirmed": False,
+                "reservation_id": None,
+            }
+        return {
+            "intent": "general",
+            "current_agent": "root",
+            "skip_root_respond": False,
+        }
+
     # Category confirmation gate (sau specialist chốt)
     if state.get("pending_category_confirmation"):
         if _looks_like_category_confirmation_no(last_human):
-            logger.info("[classify_intent] category rejected -> consultation session_id=%s", state["session_id"])
+            logger.info("[classify_intent] category rejected -> manual selection session_id=%s", state["session_id"])
             return {
-                "intent": "consultation",
+                "intent": "general",
                 "current_agent": "root",
                 "skip_root_respond": False,
+                "pending_category_selection": True,
                 "pending_category_confirmation": False,
-                "triage_complete": False,
-                "specialist_concluded": False,
-                # Reset để specialist được quyền hỏi lại chi tiết thay vì force_conclusion ngay.
-                "follow_up_count": 0,
-                "category_code": None,
                 "available_slots": [],
                 "pending_booking_date_iso": None,
                 "pending_confirmation_slot": None,
@@ -449,6 +515,20 @@ async def root_respond_node(state: AgentState, config: RunnableConfig) -> dict:
             "current_agent": "root",
             "skip_root_respond": True,
             "extra": {"message_ui": None},
+        }
+
+    if state.get("pending_category_selection"):
+        current_code = state.get("category_code")
+        msg = (
+            "Bạn chọn **Nhóm khác**. Mình hiển thị lại 5 nhóm khám để bạn chọn nhanh.\n"
+            "Bạn bấm vào nhóm phù hợp; nhóm trước đó đã được tắt chọn."
+        )
+        return {
+            "messages": [AIMessage(content=msg, name="root_agent")],
+            "last_agent_message": msg,
+            "current_agent": "root",
+            "skip_root_respond": True,
+            "extra": {"message_ui": _build_category_picker_payload(current_code)},
         }
 
     # Sau triage: bắt buộc xác nhận category trước khi qua bước chọn ngày.

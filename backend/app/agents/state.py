@@ -38,6 +38,8 @@ class AgentState(TypedDict):
     specialist_concluded: bool
     # True khi đang chờ BN xác nhận category vừa phân loại
     pending_category_confirmation: bool
+    # True khi BN bấm "Nhóm khác" và đang chờ chọn lại category từ danh sách 5 nhóm.
+    pending_category_selection: Optional[bool]
     # True sau khi save_intake ghi DB — mới được chọn giờ
     triage_complete: Optional[bool]
 

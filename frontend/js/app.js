@@ -1040,6 +1040,40 @@ function injectAssistantMessageUi(bubbleEl, ui) {
         row.appendChild(btn);
       });
     root.appendChild(row);
+  } else if (ui.template === "category_picker" && Array.isArray(ui.options)) {
+    const cap = document.createElement("p");
+    cap.className = "text-xs text-slate-400 mb-2";
+    cap.textContent = "Chọn lại nhóm khám";
+    root.appendChild(cap);
+    const row = document.createElement("div");
+    row.className = "flex flex-wrap gap-2 msg-ui-chips";
+    ui.options.forEach((item) => {
+      const code = String(item?.code || "").trim();
+      const label = String(item?.label || "").trim();
+      const desc = String(item?.description || "").trim();
+      if (!code || !label) return;
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "slot-chip-btn";
+      btn.textContent = `${code} — ${label}`;
+      if (desc) btn.title = desc;
+      const isDisabled = !!item?.disabled;
+      if (isDisabled) {
+        btn.disabled = true;
+        btn.classList.add("slot-chip-btn--disabled");
+      } else {
+        btn.addEventListener("click", () => {
+          disableUiChipsInBubble(bubbleEl, btn.textContent);
+          sendQuickReply(btn.textContent);
+        });
+      }
+      row.appendChild(btn);
+    });
+    root.appendChild(row);
+    const helper = document.createElement("p");
+    helper.className = "text-xs text-slate-500 mt-2";
+    helper.textContent = "Mẹo: mỗi nhóm tương ứng thời lượng khám khác nhau.";
+    root.appendChild(helper);
   } else if (ui.template === "day_chips" && Array.isArray(ui.days)) {
     const labels = ui.days.map((t) => String(t).trim()).filter(Boolean);
     if (labels.length === 0) return;
