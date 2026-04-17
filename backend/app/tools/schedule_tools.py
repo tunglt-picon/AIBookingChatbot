@@ -10,6 +10,7 @@ Production: thay mock bằng HIS/EHR API thật.
 
 import json
 import logging
+import re
 from datetime import date, datetime, timedelta, timezone
 from typing import Optional
 
@@ -162,6 +163,37 @@ def infer_date_strs_from_user_text(user_text: str) -> list[str]:
 
     found: list[str] = []
     seen: set[str] = set()
+
+    # Ưu tiên parse ngày dạng dd/mm từ chip datetime_chips
+    # (vd: "Thứ 6, 24/04 14:00 ...") để tránh lệch ngày khi chọn nhiều ngày.
+    for m in re.finditer(r"\b(\d{1,2})/(\d{1,2})\b", low):
+        try:
+            dd = int(m.group(1))
+            mm = int(m.group(2))
+        except Exception:
+            continue
+
+        iso_match: str | None = None
+        # Ưu tiên map vào tuần mock hiện tại nếu có.
+        for iso in mock_dates:
+            try:
+                y, mo, d = iso.split("-")
+                if int(mo) == mm and int(d) == dd:
+                    iso_match = iso
+                    break
+            except Exception:
+                continue
+
+        # Fallback theo năm hiện tại nếu không khớp mock.
+        if iso_match is None:
+            try:
+                iso_match = date(today.year, mm, dd).isoformat()
+            except ValueError:
+                iso_match = None
+
+        if iso_match and iso_match not in seen:
+            seen.add(iso_match)
+            found.append(iso_match)
 
     for phrase, target_wd in _VI_WEEKDAY_PHRASES:
         if phrase in low and target_wd < 5:

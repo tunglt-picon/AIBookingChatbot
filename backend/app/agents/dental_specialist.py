@@ -44,6 +44,7 @@ Quy tắc:
 - Luôn trả lời bằng tiếng Việt.
 - Hỏi tập trung: vị trí răng, thời điểm xuất hiện, yếu tố kích thích (lạnh/nóng/nhai), sưng/mủ/sốt, tiền sử điều trị gần đây.
 - Đặc biệt: nếu phát hiện bệnh nhân nói về **trẻ em** (bé, con, cháu, tuổi nhỏ) → ưu tiên CAT-04.
+- Nếu bệnh nhân nêu nhu cầu **niềng/chỉnh nha răng lệch** (kể cả chưa nói rõ triệu chứng khác) → ưu tiên CAT-03.
 - Nếu BN nói "không còn gì thêm", "hết rồi", "đủ rồi" → **chốt JSON ngay**, không hỏi thêm.
 - TUYỆT ĐỐI KHÔNG tư vấn y khoa, không chẩn đoán, không đề xuất điều trị.
 - **TUYỆT ĐỐI KHÔNG hỏi họ tên, số điện thoại, email, địa chỉ, CMND/CCCD, ngày sinh** hay bất kỳ thông tin
@@ -149,6 +150,8 @@ def _infer_category_from_text(text: str) -> str:
     from app.domain.dental_cases import DEFAULT_CATEGORY_CODE
 
     low = (text or "").lower()
+    if any(k in low for k in ("niềng", "nieng", "chỉnh nha", "chinh nha", "răng lệch", "rang lech")):
+        return "CAT-03"
     if any(k in low for k in ("bé", "trẻ", "con tôi", "cháu", "răng sữa", "sún", "mọc lẫy")):
         return "CAT-04"
     if any(k in low for k in ("đau dội", "nhức đêm", "đau tự phát", "sưng mủ chân răng",
@@ -166,7 +169,54 @@ def _infer_category_from_text(text: str) -> str:
     return DEFAULT_CATEGORY_CODE
 
 
+def _looks_like_category_count_question(text: str) -> bool:
+    low = (text or "").lower().strip()
+    if not low:
+        return False
+    ask_keys = ("bao nhiêu", "mấy", "may", "số lượng", "so luong")
+    domain_keys = (
+        "nhóm", "nhom",
+        "category", "cat",
+        "loại khám", "loai kham",
+        "dịch vụ", "dich vu",
+        "danh mục", "danh muc",
+        "hạng mục", "hang muc",
+    )
+    clinic_keys = ("phòng khám", "phong kham", "smilecare")
+    return (
+        any(k in low for k in ask_keys)
+        and any(k in low for k in domain_keys)
+        and any(k in low for k in clinic_keys)
+    )
+
+
+def _build_mock_categories_reply() -> str:
+    from app.domain.dental_cases import category_label_vi, category_short_description_vi
+    from app.services.mock_week_schedule_loader import mock_schedule_summary_for_lab
+
+    summary = mock_schedule_summary_for_lab()
+    codes = summary.get("cac_ma_loai_kham_trong_file") or []
+    norm_codes = [str(c).strip().upper() for c in codes if isinstance(c, str) and str(c).strip()]
+    if not norm_codes:
+        norm_codes = ["CAT-01", "CAT-02", "CAT-03", "CAT-04", "CAT-05"]
+
+    lines = [f"Hiện dữ liệu mock của phòng khám có **{len(norm_codes)} nhóm khám**:"]
+    for code in norm_codes:
+        label = category_label_vi(code)
+        short = category_short_description_vi(code)
+        if short:
+            lines.append(f"- **{code} — {label}**: {short}")
+        else:
+            lines.append(f"- **{code} — {label}**")
+    lines.append("\nBạn muốn mình tiếp tục phân loại triệu chứng để chọn nhóm phù hợp luôn không?")
+    return "\n".join(lines)
+
+
 def _resolve_category(structured: dict | None, state: AgentState) -> str:
+    summary = (structured or {}).get("symptoms_summary") or state.get("symptoms_summary") or ""
+    if _infer_category_from_text(summary) == "CAT-03":
+        # Business rule: các case niềng/chỉnh nha ưu tiên CAT-03 cho flow hiện tại.
+        return "CAT-03"
     raw = (structured or {}).get("category_code")
     if isinstance(raw, str) and raw.strip().upper() in _VALID_CATEGORY_CODES:
         return raw.strip().upper()
@@ -177,7 +227,6 @@ def _resolve_category(structured: dict | None, state: AgentState) -> str:
         scored = score_category_from_symptom_tags(tag_strs)
         if scored:
             return scored
-    summary = (structured or {}).get("symptoms_summary") or state.get("symptoms_summary") or ""
     return _infer_category_from_text(summary)
 
 
@@ -190,6 +239,17 @@ async def dental_specialist_node(state: AgentState, config: RunnableConfig) -> d
 
     last_human = _last_human_content(state)
     n_humans = sum(1 for m in state.get("messages") or [] if getattr(m, "type", None) == "human")
+
+    if _looks_like_category_count_question(last_human):
+        msg = _build_mock_categories_reply()
+        return {
+            "messages": [AIMessage(content=msg, name="specialist_agent")],
+            "last_agent_message": msg,
+            "current_agent": "specialist",
+            "follow_up_count": follow_up_count + 1,
+            "specialist_concluded": False,
+            "extra": {"message_ui": None},
+        }
 
     if _user_signals_no_more_symptoms(last_human) and n_humans >= 2:
         summary = _build_symptoms_summary_when_closing(state, last_human)

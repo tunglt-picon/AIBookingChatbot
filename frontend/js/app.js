@@ -16,6 +16,100 @@ const State = {
   sessions: [],
 };
 
+const UI_STATE_STORAGE_KEY = "dental_ui_state_v1";
+const UI_STATE_MAX_PER_SESSION = 200;
+
+function _hashText(input) {
+  const s = String(input || "");
+  let h = 5381;
+  for (let i = 0; i < s.length; i += 1) {
+    h = ((h << 5) + h) ^ s.charCodeAt(i);
+  }
+  return (h >>> 0).toString(16);
+}
+
+function _loadUiStateStore() {
+  try {
+    const raw = localStorage.getItem(UI_STATE_STORAGE_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function _saveUiStateStore(store) {
+  try {
+    localStorage.setItem(UI_STATE_STORAGE_KEY, JSON.stringify(store || {}));
+  } catch {
+    // Ignore quota / serialization errors in UI cache.
+  }
+}
+
+function cacheAssistantUiState(sessionId, assistantText, ui) {
+  const sid = String(sessionId || "").trim();
+  const text = String(assistantText || "").trim();
+  if (!sid || !text || !ui || typeof ui !== "object") return;
+
+  const key = _hashText(text);
+  const store = _loadUiStateStore();
+  const bucket = store[sid] && typeof store[sid] === "object" ? store[sid] : {};
+  bucket[key] = {
+    ui,
+    ts: Date.now(),
+    chosen: Array.isArray(bucket[key]?.chosen) ? bucket[key].chosen : [],
+  };
+
+  const entries = Object.entries(bucket);
+  if (entries.length > UI_STATE_MAX_PER_SESSION) {
+    entries
+      .sort((a, b) => (Number(a[1]?.ts || 0) - Number(b[1]?.ts || 0)))
+      .slice(0, entries.length - UI_STATE_MAX_PER_SESSION)
+      .forEach(([k]) => delete bucket[k]);
+  }
+  store[sid] = bucket;
+  _saveUiStateStore(store);
+}
+
+function markAssistantUiChosen(sessionId, assistantText, chosen) {
+  const sid = String(sessionId || "").trim();
+  const text = String(assistantText || "").trim();
+  if (!sid || !text) return;
+  const chosenArr = chosen == null
+    ? []
+    : (Array.isArray(chosen) ? chosen : [chosen])
+      .map((x) => String(x || "").trim())
+      .filter(Boolean);
+  if (chosenArr.length === 0) return;
+
+  const key = _hashText(text);
+  const store = _loadUiStateStore();
+  const bucket = store[sid] && typeof store[sid] === "object" ? store[sid] : {};
+  const cur = bucket[key];
+  if (!cur || !cur.ui) return;
+  bucket[key] = {
+    ...cur,
+    chosen: chosenArr,
+    ts: Date.now(),
+  };
+  store[sid] = bucket;
+  _saveUiStateStore(store);
+}
+
+function getCachedAssistantUiState(sessionId, assistantText) {
+  const sid = String(sessionId || "").trim();
+  const text = String(assistantText || "").trim();
+  if (!sid || !text) return null;
+  const key = _hashText(text);
+  const store = _loadUiStateStore();
+  const bucket = store[sid];
+  if (!bucket || typeof bucket !== "object") return null;
+  const item = bucket[key];
+  if (!item || typeof item !== "object" || !item.ui || typeof item.ui !== "object") return null;
+  return item;
+}
+
 /* ══════════════════════════════════════════════════════════════════════════
    DOM REFERENCES
 ══════════════════════════════════════════════════════════════════════════ */
@@ -177,14 +271,24 @@ function clearAuthError() {
    SESSION MANAGEMENT
 ══════════════════════════════════════════════════════════════════════════ */
 
-async function loadSessions() {
+async function loadSessions(options = {}) {
   const { ChatAPI } = window.DentalApp;
+  const { preserveCurrent = true, openOnRefresh = false } = options;
+  const previousCurrentId = State.currentSessionId;
   try {
     State.sessions = await ChatAPI.listSessions();
     renderSessionList();
 
     if (State.sessions.length > 0) {
-      openSession(State.sessions[0].id);
+      if (preserveCurrent && previousCurrentId && State.sessions.some((s) => s.id === previousCurrentId)) {
+        State.currentSessionId = previousCurrentId;
+        renderSessionList();
+        if (openOnRefresh) {
+          openSession(previousCurrentId);
+        }
+      } else if (!preserveCurrent || !previousCurrentId) {
+        openSession(State.sessions[0].id);
+      }
     } else {
       startNewSession();
     }
@@ -239,7 +343,19 @@ async function openSession(sessionId) {
 
   try {
     const session = await ChatAPI.getSession(sessionId);
-    (session.messages || []).forEach((msg) => appendMessage(msg));
+    const msgs = Array.isArray(session.messages) ? session.messages : [];
+    msgs.forEach((msg) => {
+      const row = appendMessage(msg);
+      if (!row || msg.sender_type !== "ROOT_AGENT") return;
+      const bubble = row.querySelector(".chat-bubble--assistant");
+      if (!bubble) return;
+      const cached = getCachedAssistantUiState(sessionId, msg.content);
+      if (!cached || !cached.ui) return;
+      injectAssistantMessageUi(bubble, cached.ui);
+      if (Array.isArray(cached.chosen) && cached.chosen.length > 0) {
+        disableUiChipsInBubble(bubble, cached.chosen, { persist: false });
+      }
+    });
     scrollToBottom();
   } catch (err) {
     showToast("Could not load session: " + err.message, "error");
@@ -348,12 +464,14 @@ async function sendMessage(text, options = {}) {
           if (agentMsgEl) finaliseStreamingMessage(agentMsgEl);
           if (event.ui && agentMsgEl) {
             injectAssistantMessageUi(agentMsgEl, event.ui);
+            cacheAssistantUiState(State.currentSessionId, streamAcc, event.ui);
           }
 
           if (event.booking) {
             appendBookingConfirmation(event.booking);
-            // Refresh session list to show COMPLETED
-            loadSessions();
+            // Refresh session list status only; keep current in-memory chat UI
+            // (selected chips / confirm panel) to avoid "regenerated chat" feel.
+            loadSessions({ preserveCurrent: true, openOnRefresh: false });
           }
 
           scrollToBottom();
@@ -722,8 +840,9 @@ function sendQuickReply(text) {
   sendMessage(clean, { silent: true });
 }
 
-function disableUiChipsInBubble(bubbleEl, chosen) {
+function disableUiChipsInBubble(bubbleEl, chosen, options = {}) {
   if (!bubbleEl) return;
+  const { persist = true } = options;
   const chosenArr = chosen == null
     ? []
     : (Array.isArray(chosen) ? chosen : [chosen]).map((s) => String(s || "").trim()).filter(Boolean);
@@ -735,6 +854,10 @@ function disableUiChipsInBubble(bubbleEl, chosen) {
       b.classList.add("slot-chip-btn--chosen");
     }
   });
+  if (persist) {
+    const assistantText = bubbleEl.dataset.rawText || bubbleEl.innerText || "";
+    markAssistantUiChosen(State.currentSessionId, assistantText, chosenArr);
+  }
 }
 
 /** Khung xác nhận: ô giờ + Đồng ý / Hủy / Chọn lại (mở picker tại chỗ). */

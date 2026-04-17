@@ -212,6 +212,49 @@ def _build_category_confirm_payload(category_code: str | None) -> dict[str, Any]
     }
 
 
+def _looks_like_category_count_question(text: str) -> bool:
+    low = (text or "").lower().strip()
+    if not low:
+        return False
+    ask_keys = ("bao nhiêu", "mấy", "may", "số lượng", "so luong")
+    domain_keys = (
+        "nhóm", "nhom",
+        "category", "cat",
+        "loại khám", "loai kham",
+        "dịch vụ", "dich vu",
+        "danh mục", "danh muc",
+        "hạng mục", "hang muc",
+    )
+    clinic_keys = ("phòng khám", "phong kham", "smilecare")
+    return (
+        any(k in low for k in ask_keys)
+        and any(k in low for k in domain_keys)
+        and any(k in low for k in clinic_keys)
+    )
+
+
+def _build_mock_categories_reply() -> str:
+    from app.domain.dental_cases import category_label_vi, category_short_description_vi
+    from app.services.mock_week_schedule_loader import mock_schedule_summary_for_lab
+
+    summary = mock_schedule_summary_for_lab()
+    codes = summary.get("cac_ma_loai_kham_trong_file") or []
+    norm_codes = [str(c).strip().upper() for c in codes if isinstance(c, str) and str(c).strip()]
+    if not norm_codes:
+        norm_codes = ["CAT-01", "CAT-02", "CAT-03", "CAT-04", "CAT-05"]
+
+    lines = [f"Theo dữ liệu mock hiện tại, phòng khám có **{len(norm_codes)} nhóm khám**:"]
+    for code in norm_codes:
+        label = category_label_vi(code)
+        short = category_short_description_vi(code)
+        if short:
+            lines.append(f"- **{code} — {label}**: {short}")
+        else:
+            lines.append(f"- **{code} — {label}**")
+    lines.append("\nBạn có thể mô tả triệu chứng, mình sẽ giúp phân vào nhóm phù hợp và gợi ý lịch trống.")
+    return "\n".join(lines)
+
+
 # ── Intent Classification ─────────────────────────────────────────────────────
 
 _INTENT_SYSTEM = """\
@@ -396,6 +439,17 @@ Quy định:
 async def root_respond_node(state: AgentState, config: RunnableConfig) -> dict:
     llm = get_root_llm()
     callbacks = get_langfuse_callback(config)
+    last_human = _last_human_text(state)
+
+    if _looks_like_category_count_question(last_human):
+        msg = _build_mock_categories_reply()
+        return {
+            "messages": [AIMessage(content=msg, name="root_agent")],
+            "last_agent_message": msg,
+            "current_agent": "root",
+            "skip_root_respond": True,
+            "extra": {"message_ui": None},
+        }
 
     # Sau triage: bắt buộc xác nhận category trước khi qua bước chọn ngày.
     if state.get("triage_complete") and state.get("pending_category_confirmation"):
