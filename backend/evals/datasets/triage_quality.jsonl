@@ -1,0 +1,8 @@
+{"id":"triage-01","messages":["Tôi bị sâu răng, có lỗ nhỏ và ê buốt nhẹ khi uống lạnh"],"expected_category_code":"CAT-01"}
+{"id":"triage-02","messages":["Đau răng dữ dội về đêm, uống thuốc giảm đau đỡ rất ít"],"expected_category_code":"CAT-02"}
+{"id":"triage-03","messages":["Răng khôn sưng đau, há miệng khó và muốn nhổ"],"expected_category_code":"CAT-03"}
+{"id":"triage-04","messages":["Con tôi 6 tuổi bị sâu răng sữa, bé sợ nha sĩ"],"expected_category_code":"CAT-04"}
+{"id":"triage-05","messages":["Tôi muốn khám tổng quát và chụp X-quang kiểm tra"],"expected_category_code":"CAT-05"}
+{"id":"triage-06","messages":["Răng bị mẻ, miếng trám cũ rớt ra"],"expected_category_code":"CAT-01"}
+{"id":"triage-07","messages":["Đau tự phát liên tục, răng ê buốt nặng, nghi viêm tủy"],"expected_category_code":"CAT-02"}
+{"id":"triage-08","messages":["Tôi muốn chỉnh nha, răng lệch và chen chúc"],"expected_category_code":"CAT-03"}

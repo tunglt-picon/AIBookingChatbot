@@ -266,6 +266,24 @@ const AdminLabAPI = {
   async getSessionState(sessionId) {
     return apiFetch(`/admin/lab/sessions/${sessionId}/state`);
   },
+  async listBenchmarkDatasets() {
+    return apiFetch("/admin/lab/benchmarks/datasets");
+  },
+  async getBenchmarkDataset(name) {
+    return apiFetch(`/admin/lab/benchmarks/datasets/${encodeURIComponent(name)}`);
+  },
+  async saveBenchmarkDataset(name, rows) {
+    return apiFetch(`/admin/lab/benchmarks/datasets/${encodeURIComponent(name)}`, {
+      method: "PUT",
+      body: JSON.stringify({ rows }),
+    });
+  },
+  async runBenchmark() {
+    return apiFetch("/admin/lab/benchmarks/run", {
+      method: "POST",
+      body: JSON.stringify({}),
+    });
+  },
 };
 
 /* ── Exports (module-style) ──────────────────────────────────────────────── */

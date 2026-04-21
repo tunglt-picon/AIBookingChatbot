@@ -266,6 +266,25 @@ const REST = [
   },
 ];
 
+const BENCHMARKS = [
+  {
+    id: "benchmark_lab",
+    title: "Benchmark (UI)",
+    subtitle: "Dataset chỉnh tay + chạy benchmark",
+    inputDoc: [
+      "Chọn dataset JSONL, chỉnh trực tiếp từng dòng (JSON object).",
+      "Bấm Lưu dataset để ghi file backend/evals/datasets/*.jsonl.",
+      "Bấm Chạy benchmark để lấy accuracy + p50/p95 ngay trên UI.",
+    ],
+    outputDoc: [
+      "intent_routing_accuracy.accuracy",
+      "triage_quality_accuracy.accuracy",
+      "booking_success_rate.success_rate",
+      "latency_ms.avg/p50/p95 + details từng case",
+    ],
+  },
+];
+
 let selected = { kind: "agent", id: "classify_intent" };
 
 function el(tag, cls, text) {
@@ -356,6 +375,7 @@ function renderAgentExtras(spec) {
 function findSpec() {
   if (selected.kind === "agent") return AGENTS.find((a) => a.id === selected.id);
   if (selected.kind === "tool") return TOOLS.find((t) => t.id === selected.id);
+  if (selected.kind === "benchmark") return BENCHMARKS.find((b) => b.id === selected.id);
   return REST.find((r) => r.id === selected.id);
 }
 
@@ -363,6 +383,7 @@ function renderNav() {
   const na = $("nav-agents");
   const nt = $("nav-tools");
   const nr = $("nav-rest");
+  const nb = $("nav-tools");
   na.replaceChildren();
   nt.replaceChildren();
   nr.replaceChildren();
@@ -396,6 +417,14 @@ function renderNav() {
     b.addEventListener("click", () => { selected = { kind: "rest", id: r.id }; renderNav(); renderPanel(); });
     nr.appendChild(b);
   });
+
+  BENCHMARKS.forEach((bmk) => {
+    const b = el("button", btnCls(selected.kind === "benchmark" && selected.id === bmk.id));
+    b.type = "button";
+    b.innerHTML = `<span class="font-semibold text-slate-100 leading-tight block">${bmk.title}</span><span class="text-[11px] text-slate-500 leading-snug block mt-0.5">${bmk.subtitle}</span>`;
+    b.addEventListener("click", () => { selected = { kind: "benchmark", id: bmk.id }; renderNav(); renderPanel(); });
+    nb.appendChild(b);
+  });
 }
 
 function renderPanel() {
@@ -428,6 +457,41 @@ function renderPanel() {
     form.appendChild(labelInput("state_patch", "state_patch (JSON)", "textarea", spec.defaultStatePatch || "{}"));
   } else if (selected.kind === "tool") {
     form.appendChild(labelInput("tool_args", "args (JSON)", "textarea", spec.defaultArgs || "{}"));
+  } else if (selected.kind === "benchmark") {
+    form.appendChild(labelInput("benchmark_dataset", "Dataset", "text", "intent_routing.jsonl"));
+    form.appendChild(labelInput("benchmark_rows", "Rows (JSON array)", "textarea", "[]"));
+    const actions = el("div", "flex flex-wrap gap-2 pt-2");
+    const btnLoad = el("button", "px-3 py-2 rounded-lg text-xs font-medium bg-slate-700 hover:bg-slate-600 text-slate-100", "Tải dataset");
+    btnLoad.type = "button";
+    btnLoad.addEventListener("click", async () => {
+      try {
+        await loadBenchmarkDatasetToForm();
+      } catch (e) {
+        setResult({ error: e instanceof Error ? e.message : String(e) }, "lỗi");
+      }
+    });
+    const btnSave = el("button", "px-3 py-2 rounded-lg text-xs font-medium bg-emerald-700 hover:bg-emerald-600 text-white", "Lưu dataset");
+    btnSave.type = "button";
+    btnSave.addEventListener("click", async () => {
+      try {
+        await saveBenchmarkDatasetFromForm();
+      } catch (e) {
+        setResult({ error: e instanceof Error ? e.message : String(e) }, "lỗi");
+      }
+    });
+    const btnList = el("button", "px-3 py-2 rounded-lg text-xs font-medium bg-indigo-700 hover:bg-indigo-600 text-white", "Danh sách dataset");
+    btnList.type = "button";
+    btnList.addEventListener("click", async () => {
+      try {
+        await listBenchmarkDatasetsToResult();
+      } catch (e) {
+        setResult({ error: e instanceof Error ? e.message : String(e) }, "lỗi");
+      }
+    });
+    actions.appendChild(btnLoad);
+    actions.appendChild(btnSave);
+    actions.appendChild(btnList);
+    form.appendChild(actions);
   } else {
     spec.fields.forEach((f) => {
       form.appendChild(labelInput(`rest_${f.name}`, f.label, f.type, "", f.placeholder));
@@ -485,12 +549,118 @@ function getFormValues() {
     }
     return { type: "tool", body: { tool: spec.id, args } };
   }
+  if (selected.kind === "benchmark") {
+    const ds = ($("benchmark_dataset")?.value || "").trim() || "intent_routing.jsonl";
+    let rows = [];
+    const raw = ($("benchmark_rows")?.value || "").trim();
+    if (raw) {
+      try { rows = JSON.parse(raw); } catch (e) { throw new Error("benchmark_rows JSON: " + e.message); }
+    }
+    if (!Array.isArray(rows)) throw new Error("benchmark_rows phải là mảng JSON.");
+    return { type: "benchmark", body: { dataset: ds, rows } };
+  }
   return { type: "rest", spec };
+}
+
+async function loadBenchmarkDatasetToForm() {
+  const name = ($("benchmark_dataset")?.value || "").trim();
+  if (!name) throw new Error("Vui lòng nhập tên dataset.");
+  const data = await window.DentalApp.AdminLabAPI.getBenchmarkDataset(name);
+  $("benchmark_rows").value = JSON.stringify(data.rows || [], null, 2);
+  labFlash(`Đã tải dataset ${data.dataset}`);
+}
+
+async function saveBenchmarkDatasetFromForm() {
+  const name = ($("benchmark_dataset")?.value || "").trim();
+  if (!name) throw new Error("Vui lòng nhập tên dataset.");
+  let rows = [];
+  try {
+    rows = JSON.parse($("benchmark_rows")?.value || "[]");
+  } catch (e) {
+    throw new Error("Rows JSON không hợp lệ: " + e.message);
+  }
+  if (!Array.isArray(rows)) throw new Error("Rows phải là mảng JSON.");
+  const data = await window.DentalApp.AdminLabAPI.saveBenchmarkDataset(name, rows);
+  setResult(data, "saved");
+  labFlash(`Đã lưu ${data.saved_rows} dòng vào ${data.dataset}`);
+}
+
+async function listBenchmarkDatasetsToResult() {
+  const data = await window.DentalApp.AdminLabAPI.listBenchmarkDatasets();
+  setResult(data, "datasets");
 }
 
 function setResult(obj, meta) {
   $("result-json").textContent = JSON.stringify(obj, null, 2);
   $("result-meta").textContent = meta || "";
+  renderBenchmarkVisual(obj);
+}
+
+function _fmtPct(v) {
+  const n = Number(v || 0);
+  return `${(n * 100).toFixed(1)}%`;
+}
+
+function renderBenchmarkVisual(obj) {
+  const root = $("benchmark-visual");
+  if (!root) return;
+  root.replaceChildren();
+  const bm = obj?.benchmarks;
+  if (!bm || typeof bm !== "object") {
+    root.classList.add("hidden");
+    return;
+  }
+  root.classList.remove("hidden");
+
+  const cards = el("div", "grid grid-cols-1 md:grid-cols-3 gap-2");
+  const cardSpec = [
+    { key: "intent_routing_accuracy", label: "Intent accuracy", rate: "accuracy" },
+    { key: "triage_quality_accuracy", label: "Triage accuracy", rate: "accuracy" },
+    { key: "booking_success_rate", label: "Booking success", rate: "success_rate" },
+  ];
+  cardSpec.forEach((spec) => {
+    const data = bm[spec.key] || {};
+    const lat = data.latency_ms || {};
+    const wrap = el("div", "rounded-lg border border-slate-700 bg-slate-900/50 p-3");
+    wrap.appendChild(el("p", "text-xs text-slate-400", spec.label));
+    wrap.appendChild(el("p", "text-lg font-semibold text-emerald-300", _fmtPct(data[spec.rate])));
+    wrap.appendChild(el("p", "text-[11px] text-slate-500", `p50 ${lat.p50 ?? 0}ms · p95 ${lat.p95 ?? 0}ms`));
+    cards.appendChild(wrap);
+  });
+  root.appendChild(cards);
+
+  const tableWrap = el("div", "rounded-lg border border-slate-700 overflow-x-auto");
+  const table = el("table", "w-full text-xs text-left border-collapse min-w-[680px]");
+  const thead = el("thead", "bg-slate-800 text-slate-300");
+  const hrow = el("tr");
+  ["Benchmark", "Case", "Expected", "Predicted", "Latency(ms)", "Kết quả"].forEach((h) => {
+    hrow.appendChild(el("th", "px-2 py-2 border-b border-slate-700", h));
+  });
+  thead.appendChild(hrow);
+  table.appendChild(thead);
+  const tbody = el("tbody", "divide-y divide-slate-800");
+
+  function pushRows(benchmarkKey, expectedKey, predictedKey) {
+    const detail = bm?.[benchmarkKey]?.details || [];
+    detail.slice(0, 30).forEach((d) => {
+      const tr = el("tr", "hover:bg-slate-800/50");
+      tr.appendChild(el("td", "px-2 py-1.5 text-slate-400", benchmarkKey));
+      tr.appendChild(el("td", "px-2 py-1.5 text-slate-200", String(d.id || "—")));
+      tr.appendChild(el("td", "px-2 py-1.5 text-slate-200", String(d[expectedKey] ?? "—")));
+      tr.appendChild(el("td", "px-2 py-1.5 text-slate-200", String(d[predictedKey] ?? d.reservation_id ?? "—")));
+      tr.appendChild(el("td", "px-2 py-1.5 text-slate-300", String(d.latency_ms ?? "—")));
+      tr.appendChild(el("td", "px-2 py-1.5", d.ok ? "✅" : "❌"));
+      tbody.appendChild(tr);
+    });
+  }
+
+  pushRows("intent_routing_accuracy", "expected_intent", "predicted_intent");
+  pushRows("triage_quality_accuracy", "expected_category_code", "predicted_category_code");
+  pushRows("booking_success_rate", "id", "reservation_id");
+
+  table.appendChild(tbody);
+  tableWrap.appendChild(table);
+  root.appendChild(tableWrap);
 }
 
 function _deepClone(v) {
@@ -756,6 +926,8 @@ document.addEventListener("DOMContentLoaded", () => {
         applyAgentRunAutoFill(pack, data);
       } else if (pack.type === "tool") {
         data = await AdminLabAPI.invokeTool(pack.body);
+      } else if (pack.type === "benchmark") {
+        data = await AdminLabAPI.runBenchmark();
       } else {
         const s = pack.spec;
         if (s.id === "rest_slots") {

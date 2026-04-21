@@ -23,6 +23,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import settings
 from app.database import get_db
 from app.models.session import SenderType, SessionStatus
+from app.observability.langfuse_client import emit_langfuse_system_span
 from app.schemas.chat import SessionResponse, SessionWithMessages
 from app.services import auth_service, chat_service
 logger = logging.getLogger(__name__)
@@ -250,6 +251,7 @@ async def _stream_agent_response(
     booking_info = None
     intake_info = None
     event_counts: dict[str, int] = {}
+    node_started_at: dict[str, float] = {}
     token_events = 0
     t_stream_start = time.monotonic()
     _debug_events_left = 120  # cap DEBUG lines per request
@@ -282,6 +284,7 @@ async def _stream_agent_response(
                 )
 
             if kind == "on_chain_start" and name in _GRAPH_NODES:
+                node_started_at[name] = time.monotonic()
                 logger.info(
                     "[chat][graph] --> node START name=%s session_id=%s",
                     name,
@@ -289,6 +292,17 @@ async def _stream_agent_response(
                 )
 
             if kind == "on_chain_end" and name in _GRAPH_NODES:
+                node_end_t = time.monotonic()
+                node_start_t = node_started_at.get(name)
+                if node_start_t is not None:
+                    emit_langfuse_system_span(
+                        span_name=f"node:{name}",
+                        session_id=str(session_id),
+                        user_id=str(patient_user_id),
+                        started_at_monotonic=node_start_t,
+                        ended_at_monotonic=node_end_t,
+                        metadata={"scope": "langgraph-node"},
+                    )
                 logger.info(
                     "[chat][graph] <-- node END name=%s session_id=%s",
                     name,
@@ -357,6 +371,18 @@ async def _stream_agent_response(
                 )
 
         stream_elapsed = time.monotonic() - t_stream_start
+        emit_langfuse_system_span(
+            span_name="chat_stream_turn",
+            session_id=str(session_id),
+            user_id=str(patient_user_id),
+            started_at_monotonic=t_stream_start,
+            ended_at_monotonic=time.monotonic(),
+            metadata={
+                "scope": "chat-api",
+                "token_events": token_events,
+                "event_kinds_seen": len(event_counts),
+            },
+        )
 
         # ── Final state (always) ────────────────────────────────────────────
         final_state = await graph.aget_state(thread_config)

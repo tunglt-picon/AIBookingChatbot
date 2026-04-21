@@ -514,7 +514,29 @@ Traces include session id (thread id), node spans, LLM calls, and tool calls suc
 
 ---
 
-## 11. Production extensions
+## 11. Quality evaluation (Eval)
+
+Project includes a benchmark starter kit at `backend/evals/`:
+
+- `datasets/intent_routing.jsonl`: evaluate intent routing accuracy (`consultation`, `select_slot`, `confirm_appointment`, `general`).
+- `datasets/triage_quality.jsonl`: evaluate symptom-to-`category_code` mapping quality.
+- `datasets/booking_success.jsonl`: evaluate booking success rate through lab tool flow.
+- `run_benchmark.py`: computes accuracy/success metrics and latency (`avg`, `p50`, `p95`) per benchmark.
+
+Run:
+
+```bash
+cd backend
+python3 evals/run_benchmark.py --base-url http://localhost:8000
+```
+
+Output report:
+
+- `backend/evals/reports/latest_report.json`
+
+---
+
+## 12. Production extensions
 
 ### Alembic (DB migrations)
 
@@ -536,7 +558,7 @@ alembic upgrade head
 
 ---
 
-## 12. Troubleshooting
+## 13. Troubleshooting
 
 ### Database connection error
 

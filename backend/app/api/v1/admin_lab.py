@@ -6,6 +6,9 @@ from __future__ import annotations
 
 import json
 import logging
+import statistics
+import time
+from pathlib import Path
 from typing import Any, Optional
 
 from fastapi import APIRouter, HTTPException
@@ -140,6 +143,59 @@ class ToolInvokeBody(BaseModel):
     args: dict = Field(default_factory=dict)
 
 
+class DatasetSaveBody(BaseModel):
+    rows: list[dict] = Field(default_factory=list, description="Danh sách record dataset (JSON objects)")
+
+
+def _eval_dataset_dir() -> Path:
+    # backend/app/api/v1/admin_lab.py -> backend/evals/datasets
+    return Path(__file__).resolve().parents[3] / "evals" / "datasets"
+
+
+def _eval_dataset_path(name: str) -> Path:
+    safe = (name or "").strip()
+    if not safe.endswith(".jsonl"):
+        safe = f"{safe}.jsonl"
+    if "/" in safe or ".." in safe or safe.startswith("."):
+        raise HTTPException(status_code=400, detail="Tên dataset không hợp lệ.")
+    path = _eval_dataset_dir() / safe
+    if not path.exists():
+        raise HTTPException(status_code=404, detail=f"Không tìm thấy dataset: {safe}")
+    return path
+
+
+def _read_jsonl(path: Path) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for raw in path.read_text(encoding="utf-8").splitlines():
+        line = raw.strip()
+        if not line:
+            continue
+        try:
+            obj = json.loads(line)
+        except json.JSONDecodeError as exc:
+            raise HTTPException(status_code=400, detail=f"Dataset lỗi JSONL tại dòng: {line[:120]}") from exc
+        if not isinstance(obj, dict):
+            raise HTTPException(status_code=400, detail="Mỗi dòng dataset phải là object JSON.")
+        rows.append(obj)
+    return rows
+
+
+def _write_jsonl(path: Path, rows: list[dict[str, Any]]) -> None:
+    lines = [json.dumps(r, ensure_ascii=False) for r in rows]
+    content = "\n".join(lines) + ("\n" if lines else "")
+    path.write_text(content, encoding="utf-8")
+
+
+def _pct(values: list[float], q: float) -> float:
+    if not values:
+        return 0.0
+    if len(values) == 1:
+        return values[0]
+    sorted_vals = sorted(values)
+    idx = int(round((q / 100.0) * (len(sorted_vals) - 1)))
+    return sorted_vals[idx]
+
+
 @router.get("/mock-schedule-summary")
 async def mock_schedule_summary():
     """Tóm tắt dữ liệu lịch mock trong JSON (để so sánh khi test tool/API)."""
@@ -150,6 +206,189 @@ async def mock_schedule_summary():
 async def triage_rubric_dump():
     """Toàn bộ rubric triệu chứng ↔ mã loại khám + 90 ví dụ (file mock JSON)."""
     return load_triage_rubric_raw()
+
+
+@router.get("/benchmarks/datasets")
+async def benchmark_dataset_list():
+    root = _eval_dataset_dir()
+    root.mkdir(parents=True, exist_ok=True)
+    items = []
+    for p in sorted(root.glob("*.jsonl")):
+        rows = _read_jsonl(p)
+        items.append(
+            {
+                "name": p.name,
+                "rows": len(rows),
+            }
+        )
+    return {"datasets": items}
+
+
+@router.get("/benchmarks/datasets/{dataset_name}")
+async def benchmark_dataset_get(dataset_name: str):
+    path = _eval_dataset_path(dataset_name)
+    rows = _read_jsonl(path)
+    return {"dataset": path.name, "rows": rows}
+
+
+@router.put("/benchmarks/datasets/{dataset_name}")
+async def benchmark_dataset_save(dataset_name: str, body: DatasetSaveBody):
+    path = _eval_dataset_path(dataset_name)
+    _write_jsonl(path, body.rows or [])
+    return {"dataset": path.name, "saved_rows": len(body.rows or [])}
+
+
+@router.post("/benchmarks/run")
+async def benchmark_run():
+    intent_rows = _read_jsonl(_eval_dataset_path("intent_routing.jsonl"))
+    triage_rows = _read_jsonl(_eval_dataset_path("triage_quality.jsonl"))
+    booking_rows = _read_jsonl(_eval_dataset_path("booking_success.jsonl"))
+
+    # Intent benchmark
+    intent_hit = 0
+    intent_lat: list[float] = []
+    intent_details: list[dict[str, Any]] = []
+    for i, row in enumerate(intent_rows, start=1):
+        state = _default_agent_state(
+            session_id=50000 + i,
+            patient_user_id=1,
+            message=str(row.get("message") or ""),
+            patch=dict(row.get("state_patch") or {}),
+        )
+        t0 = time.monotonic()
+        updates = await classify_intent_node(state, {"configurable": {"thread_id": f"lab-bench-intent-{i}"}})
+        elapsed = (time.monotonic() - t0) * 1000.0
+        intent_lat.append(elapsed)
+        pred = updates.get("intent")
+        expected = row.get("expected_intent")
+        ok = pred == expected
+        if ok:
+            intent_hit += 1
+        intent_details.append(
+            {
+                "id": row.get("id", f"intent-{i}"),
+                "expected_intent": expected,
+                "predicted_intent": pred,
+                "ok": ok,
+                "latency_ms": round(elapsed, 2),
+            }
+        )
+
+    # Triage benchmark
+    triage_hit = 0
+    triage_lat: list[float] = []
+    triage_details: list[dict[str, Any]] = []
+    for i, row in enumerate(triage_rows, start=1):
+        messages = [{"role": "human", "content": m} for m in (row.get("messages") or [])]
+        state = _default_agent_state(
+            session_id=60000 + i,
+            patient_user_id=1,
+            message="",
+            patch={
+                "messages": messages,
+                "follow_up_count": 99,  # force conclude this turn
+                "symptoms_summary": " ".join(str(m) for m in (row.get("messages") or [])),
+            },
+        )
+        t0 = time.monotonic()
+        updates = await dental_specialist_node(state, {"configurable": {"thread_id": f"lab-bench-triage-{i}"}})
+        elapsed = (time.monotonic() - t0) * 1000.0
+        triage_lat.append(elapsed)
+        pred = updates.get("category_code")
+        expected = row.get("expected_category_code")
+        ok = pred == expected
+        if ok:
+            triage_hit += 1
+        triage_details.append(
+            {
+                "id": row.get("id", f"triage-{i}"),
+                "expected_category_code": expected,
+                "predicted_category_code": pred,
+                "ok": ok,
+                "latency_ms": round(elapsed, 2),
+            }
+        )
+
+    # Booking benchmark
+    booking_ok = 0
+    booking_lat: list[float] = []
+    booking_details: list[dict[str, Any]] = []
+    for i, row in enumerate(booking_rows, start=1):
+        intake_json = await save_consult_intake.ainvoke(
+            {
+                "patient_user_id": 1,
+                "session_id": 70000 + i,
+                "symptoms": "Benchmark synthetic symptoms",
+                "ai_diagnosis": "Benchmark only",
+                "needs_visit": True,
+                "category_code": row.get("category_code"),
+            }
+        )
+        intake = json.loads(intake_json)
+        intake_id = intake.get("intake_id")
+        slots_json = await get_mock_schedule.ainvoke(
+            {
+                "scope": "day",
+                "date_str": row.get("date_str"),
+                "category_code": row.get("category_code"),
+            }
+        )
+        slots_data = json.loads(slots_json)
+        slots = slots_data.get("slots") or []
+        if not intake_id or not slots:
+            booking_details.append(
+                {
+                    "id": row.get("id", f"booking-{i}"),
+                    "ok": False,
+                    "reason": "missing intake or slots",
+                }
+            )
+            continue
+        t0 = time.monotonic()
+        book_json = await book_appointment.ainvoke(
+            {
+                "patient_user_id": 1,
+                "intake_id": intake_id,
+                "datetime_str": slots[0].get("datetime_str"),
+            }
+        )
+        elapsed = (time.monotonic() - t0) * 1000.0
+        booking_lat.append(elapsed)
+        book_out = json.loads(book_json)
+        ok = bool(book_out.get("reservation_id"))
+        if ok:
+            booking_ok += 1
+        booking_details.append(
+            {
+                "id": row.get("id", f"booking-{i}"),
+                "reservation_id": book_out.get("reservation_id"),
+                "ok": ok,
+                "latency_ms": round(elapsed, 2),
+            }
+        )
+
+    def _metric(total: int, good: int, lat: list[float], details: list[dict[str, Any]], rate_key: str):
+        denom = max(total, 1)
+        return {
+            "total": total,
+            ("correct" if rate_key == "accuracy" else "success"): good,
+            rate_key: round(good / denom, 4),
+            "latency_ms": {
+                "avg": round(statistics.mean(lat), 2) if lat else 0.0,
+                "p50": round(_pct(lat, 50), 2),
+                "p95": round(_pct(lat, 95), 2),
+            },
+            "details": details,
+        }
+
+    return {
+        "generated_at_unix": int(time.time()),
+        "benchmarks": {
+            "intent_routing_accuracy": _metric(len(intent_rows), intent_hit, intent_lat, intent_details, "accuracy"),
+            "triage_quality_accuracy": _metric(len(triage_rows), triage_hit, triage_lat, triage_details, "accuracy"),
+            "booking_success_rate": _metric(len(booking_rows), booking_ok, booking_lat, booking_details, "success_rate"),
+        },
+    }
 
 
 @router.get("/sessions/{session_id}/state")
