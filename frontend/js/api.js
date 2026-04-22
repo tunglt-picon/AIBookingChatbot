@@ -278,10 +278,10 @@ const AdminLabAPI = {
       body: JSON.stringify({ rows }),
     });
   },
-  async runBenchmark() {
+  async runBenchmark(payload = {}) {
     return apiFetch("/admin/lab/benchmarks/run", {
       method: "POST",
-      body: JSON.stringify({}),
+      body: JSON.stringify(payload),
     });
   },
 };

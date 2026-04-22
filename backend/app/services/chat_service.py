@@ -1,6 +1,6 @@
 from typing import Optional
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -56,6 +56,20 @@ async def save_message(
     await db.commit()
     await db.refresh(msg)
     return msg
+
+
+async def count_messages_by_sender(
+    db: AsyncSession,
+    session_id: int,
+    sender_type: SenderType,
+) -> int:
+    result = await db.execute(
+        select(func.count(BookingChatMessage.id)).where(
+            BookingChatMessage.session_id == session_id,
+            BookingChatMessage.sender_type == sender_type,
+        )
+    )
+    return int(result.scalar() or 0)
 
 
 async def update_session_status(

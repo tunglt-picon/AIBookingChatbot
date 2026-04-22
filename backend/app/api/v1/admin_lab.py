@@ -15,10 +15,21 @@ from fastapi import APIRouter, HTTPException
 from langchain_core.messages import AIMessage, HumanMessage
 from langchain_core.runnables import RunnableConfig
 from pydantic import BaseModel, Field
+from sqlalchemy import select
 
 from app.agents.root_orchestrator import classify_intent_node, root_respond_node
 from app.agents.dental_specialist import dental_specialist_node
 from app.agents.state import AgentState
+from app.database import async_session_factory
+from app.models.patient import PatientUser
+from app.models.session import BookingChatSession
+from app.observability.langfuse_client import (
+    build_phase_span_name,
+    build_session_trace_id,
+    emit_langfuse_system_span,
+    ensure_session_trace,
+    update_session_trace,
+)
 from app.services.mock_week_schedule_loader import mock_schedule_summary_for_lab
 from app.services.triage_rubric_loader import load_triage_rubric_raw
 from app.tools.intake_tools import save_consult_intake
@@ -147,6 +158,14 @@ class DatasetSaveBody(BaseModel):
     rows: list[dict] = Field(default_factory=list, description="Danh sách record dataset (JSON objects)")
 
 
+class BenchmarkRunBody(BaseModel):
+    dataset: Optional[str] = Field(default=None, description="intent_routing.jsonl | triage_quality.jsonl | booking_success.jsonl | all")
+    benchmarks: Optional[list[str]] = Field(
+        default=None,
+        description="intent_routing_accuracy | triage_quality_accuracy | booking_success_rate",
+    )
+
+
 def _eval_dataset_dir() -> Path:
     # backend/app/api/v1/admin_lab.py -> backend/evals/datasets
     return Path(__file__).resolve().parents[3] / "evals" / "datasets"
@@ -196,6 +215,61 @@ def _pct(values: list[float], q: float) -> float:
     return sorted_vals[idx]
 
 
+def _normalize_dataset_name(name: str | None) -> str:
+    raw = (name or "").strip().lower()
+    if not raw or raw == "all":
+        return "all"
+    if raw.endswith(".jsonl"):
+        raw = raw[:-6]
+    return raw
+
+
+def _selected_benchmarks(dataset_name: str, explicit: list[str] | None) -> list[str]:
+    allowed = {
+        "intent_routing_accuracy",
+        "triage_quality_accuracy",
+        "booking_success_rate",
+    }
+    if explicit:
+        picked = [x for x in explicit if x in allowed]
+        if not picked:
+            raise HTTPException(status_code=400, detail="benchmarks không hợp lệ.")
+        return picked
+    mapping = {
+        "intent_routing": ["intent_routing_accuracy"],
+        "triage_quality": ["triage_quality_accuracy"],
+        "booking_success": ["booking_success_rate"],
+        "all": [
+            "intent_routing_accuracy",
+            "triage_quality_accuracy",
+            "booking_success_rate",
+        ],
+    }
+    if dataset_name not in mapping:
+        raise HTTPException(status_code=400, detail=f"Dataset benchmark không hợp lệ: {dataset_name}")
+    return mapping[dataset_name]
+
+
+async def _resolve_benchmark_patient_user_id() -> int:
+    async with async_session_factory() as db:
+        pid = await db.scalar(select(PatientUser.id).order_by(PatientUser.id.asc()).limit(1))
+    if not pid:
+        raise HTTPException(
+            status_code=400,
+            detail="Không có patient user để chạy benchmark. Vui lòng tạo user trước.",
+        )
+    return int(pid)
+
+
+async def _create_benchmark_session_id(patient_user_id: int) -> int:
+    async with async_session_factory() as db:
+        session = BookingChatSession(patient_user_id=patient_user_id)
+        db.add(session)
+        await db.commit()
+        await db.refresh(session)
+        return int(session.id)
+
+
 @router.get("/mock-schedule-summary")
 async def mock_schedule_summary():
     """Tóm tắt dữ liệu lịch mock trong JSON (để so sánh khi test tool/API)."""
@@ -239,132 +313,191 @@ async def benchmark_dataset_save(dataset_name: str, body: DatasetSaveBody):
 
 
 @router.post("/benchmarks/run")
-async def benchmark_run():
-    intent_rows = _read_jsonl(_eval_dataset_path("intent_routing.jsonl"))
-    triage_rows = _read_jsonl(_eval_dataset_path("triage_quality.jsonl"))
-    booking_rows = _read_jsonl(_eval_dataset_path("booking_success.jsonl"))
+async def benchmark_run(body: BenchmarkRunBody):
+    dataset_name = _normalize_dataset_name(body.dataset)
+    selected = _selected_benchmarks(dataset_name, body.benchmarks)
+    patient_user_id = await _resolve_benchmark_patient_user_id()
+    bench_run_id = f"benchmark-{int(time.time())}"
+    trace_id = build_session_trace_id(bench_run_id)
+    ensure_session_trace(
+        session_id=bench_run_id,
+        user_id="admin-lab",
+        input_payload={
+            "dataset": dataset_name,
+            "benchmarks": selected,
+            "patient_user_id": patient_user_id,
+        },
+        metadata={"flow": "admin-benchmark", "status": "in_progress", "level": "info"},
+        tags=["benchmark", "admin-lab"],
+    )
 
     # Intent benchmark
     intent_hit = 0
     intent_lat: list[float] = []
     intent_details: list[dict[str, Any]] = []
-    for i, row in enumerate(intent_rows, start=1):
-        state = _default_agent_state(
-            session_id=50000 + i,
-            patient_user_id=1,
-            message=str(row.get("message") or ""),
-            patch=dict(row.get("state_patch") or {}),
-        )
-        t0 = time.monotonic()
-        updates = await classify_intent_node(state, {"configurable": {"thread_id": f"lab-bench-intent-{i}"}})
-        elapsed = (time.monotonic() - t0) * 1000.0
-        intent_lat.append(elapsed)
-        pred = updates.get("intent")
-        expected = row.get("expected_intent")
-        ok = pred == expected
-        if ok:
-            intent_hit += 1
-        intent_details.append(
-            {
-                "id": row.get("id", f"intent-{i}"),
-                "expected_intent": expected,
-                "predicted_intent": pred,
-                "ok": ok,
-                "latency_ms": round(elapsed, 2),
-            }
+    if "intent_routing_accuracy" in selected:
+        intent_rows = _read_jsonl(_eval_dataset_path("intent_routing.jsonl"))
+        t_intent_start = time.monotonic()
+        for i, row in enumerate(intent_rows, start=1):
+            state = _default_agent_state(
+                session_id=50000 + i,
+                patient_user_id=patient_user_id,
+                message=str(row.get("message") or ""),
+                patch=dict(row.get("state_patch") or {}),
+            )
+            t0 = time.monotonic()
+            updates = await classify_intent_node(state, {"configurable": {"thread_id": f"lab-bench-intent-{i}"}})
+            elapsed = (time.monotonic() - t0) * 1000.0
+            intent_lat.append(elapsed)
+            pred = updates.get("intent")
+            expected = row.get("expected_intent")
+            ok = pred == expected
+            if ok:
+                intent_hit += 1
+            intent_details.append(
+                {
+                    "id": row.get("id", f"intent-{i}"),
+                    "expected_intent": expected,
+                    "predicted_intent": pred,
+                    "ok": ok,
+                    "latency_ms": round(elapsed, 2),
+                }
+            )
+        emit_langfuse_system_span(
+            span_name=build_phase_span_name("10.benchmark", "intent_routing_accuracy"),
+            session_id=bench_run_id,
+            user_id="admin-lab",
+            trace_id=trace_id,
+            started_at_monotonic=t_intent_start,
+            ended_at_monotonic=time.monotonic(),
+            input_payload={"dataset": "intent_routing.jsonl", "rows": len(intent_rows)},
+            output_payload={"correct": intent_hit, "total": len(intent_rows)},
+            metadata={"status": "success", "level": "info"},
+            tags=["benchmark", "intent"],
         )
 
     # Triage benchmark
     triage_hit = 0
     triage_lat: list[float] = []
     triage_details: list[dict[str, Any]] = []
-    for i, row in enumerate(triage_rows, start=1):
-        messages = [{"role": "human", "content": m} for m in (row.get("messages") or [])]
-        state = _default_agent_state(
-            session_id=60000 + i,
-            patient_user_id=1,
-            message="",
-            patch={
-                "messages": messages,
-                "follow_up_count": 99,  # force conclude this turn
-                "symptoms_summary": " ".join(str(m) for m in (row.get("messages") or [])),
-            },
-        )
-        t0 = time.monotonic()
-        updates = await dental_specialist_node(state, {"configurable": {"thread_id": f"lab-bench-triage-{i}"}})
-        elapsed = (time.monotonic() - t0) * 1000.0
-        triage_lat.append(elapsed)
-        pred = updates.get("category_code")
-        expected = row.get("expected_category_code")
-        ok = pred == expected
-        if ok:
-            triage_hit += 1
-        triage_details.append(
-            {
-                "id": row.get("id", f"triage-{i}"),
-                "expected_category_code": expected,
-                "predicted_category_code": pred,
-                "ok": ok,
-                "latency_ms": round(elapsed, 2),
-            }
+    if "triage_quality_accuracy" in selected:
+        triage_rows = _read_jsonl(_eval_dataset_path("triage_quality.jsonl"))
+        t_triage_start = time.monotonic()
+        for i, row in enumerate(triage_rows, start=1):
+            messages = [{"role": "human", "content": m} for m in (row.get("messages") or [])]
+            state = _default_agent_state(
+                session_id=60000 + i,
+                patient_user_id=patient_user_id,
+                message="",
+                patch={
+                    "messages": messages,
+                    "follow_up_count": 99,  # force conclude this turn
+                    "symptoms_summary": " ".join(str(m) for m in (row.get("messages") or [])),
+                },
+            )
+            t0 = time.monotonic()
+            updates = await dental_specialist_node(state, {"configurable": {"thread_id": f"lab-bench-triage-{i}"}})
+            elapsed = (time.monotonic() - t0) * 1000.0
+            triage_lat.append(elapsed)
+            pred = updates.get("category_code")
+            expected = row.get("expected_category_code")
+            ok = pred == expected
+            if ok:
+                triage_hit += 1
+            triage_details.append(
+                {
+                    "id": row.get("id", f"triage-{i}"),
+                    "expected_category_code": expected,
+                    "predicted_category_code": pred,
+                    "ok": ok,
+                    "latency_ms": round(elapsed, 2),
+                }
+            )
+        emit_langfuse_system_span(
+            span_name=build_phase_span_name("10.benchmark", "triage_quality_accuracy"),
+            session_id=bench_run_id,
+            user_id="admin-lab",
+            trace_id=trace_id,
+            started_at_monotonic=t_triage_start,
+            ended_at_monotonic=time.monotonic(),
+            input_payload={"dataset": "triage_quality.jsonl", "rows": len(triage_rows)},
+            output_payload={"correct": triage_hit, "total": len(triage_rows)},
+            metadata={"status": "success", "level": "info"},
+            tags=["benchmark", "triage"],
         )
 
     # Booking benchmark
     booking_ok = 0
     booking_lat: list[float] = []
     booking_details: list[dict[str, Any]] = []
-    for i, row in enumerate(booking_rows, start=1):
-        intake_json = await save_consult_intake.ainvoke(
-            {
-                "patient_user_id": 1,
-                "session_id": 70000 + i,
-                "symptoms": "Benchmark synthetic symptoms",
-                "ai_diagnosis": "Benchmark only",
-                "needs_visit": True,
-                "category_code": row.get("category_code"),
-            }
-        )
-        intake = json.loads(intake_json)
-        intake_id = intake.get("intake_id")
-        slots_json = await get_mock_schedule.ainvoke(
-            {
-                "scope": "day",
-                "date_str": row.get("date_str"),
-                "category_code": row.get("category_code"),
-            }
-        )
-        slots_data = json.loads(slots_json)
-        slots = slots_data.get("slots") or []
-        if not intake_id or not slots:
+    if "booking_success_rate" in selected:
+        booking_rows = _read_jsonl(_eval_dataset_path("booking_success.jsonl"))
+        t_booking_start = time.monotonic()
+        for i, row in enumerate(booking_rows, start=1):
+            session_id = await _create_benchmark_session_id(patient_user_id)
+            intake_json = await save_consult_intake.ainvoke(
+                {
+                    "patient_user_id": patient_user_id,
+                    "session_id": session_id,
+                    "symptoms": "Benchmark synthetic symptoms",
+                    "ai_diagnosis": "Benchmark only",
+                    "needs_visit": True,
+                    "category_code": row.get("category_code"),
+                }
+            )
+            intake = json.loads(intake_json)
+            intake_id = intake.get("intake_id")
+            slots_json = await get_mock_schedule.ainvoke(
+                {
+                    "scope": "day",
+                    "date_str": row.get("date_str"),
+                    "category_code": row.get("category_code"),
+                }
+            )
+            slots_data = json.loads(slots_json)
+            slots = slots_data.get("slots") or []
+            if not intake_id or not slots:
+                booking_details.append(
+                    {
+                        "id": row.get("id", f"booking-{i}"),
+                        "ok": False,
+                        "reason": "missing intake or slots",
+                    }
+                )
+                continue
+            t0 = time.monotonic()
+            book_json = await book_appointment.ainvoke(
+                {
+                    "patient_user_id": patient_user_id,
+                    "intake_id": intake_id,
+                    "datetime_str": slots[0].get("datetime_str"),
+                }
+            )
+            elapsed = (time.monotonic() - t0) * 1000.0
+            booking_lat.append(elapsed)
+            book_out = json.loads(book_json)
+            ok = bool(book_out.get("reservation_id"))
+            if ok:
+                booking_ok += 1
             booking_details.append(
                 {
                     "id": row.get("id", f"booking-{i}"),
-                    "ok": False,
-                    "reason": "missing intake or slots",
+                    "reservation_id": book_out.get("reservation_id"),
+                    "ok": ok,
+                    "latency_ms": round(elapsed, 2),
                 }
             )
-            continue
-        t0 = time.monotonic()
-        book_json = await book_appointment.ainvoke(
-            {
-                "patient_user_id": 1,
-                "intake_id": intake_id,
-                "datetime_str": slots[0].get("datetime_str"),
-            }
-        )
-        elapsed = (time.monotonic() - t0) * 1000.0
-        booking_lat.append(elapsed)
-        book_out = json.loads(book_json)
-        ok = bool(book_out.get("reservation_id"))
-        if ok:
-            booking_ok += 1
-        booking_details.append(
-            {
-                "id": row.get("id", f"booking-{i}"),
-                "reservation_id": book_out.get("reservation_id"),
-                "ok": ok,
-                "latency_ms": round(elapsed, 2),
-            }
+        emit_langfuse_system_span(
+            span_name=build_phase_span_name("10.benchmark", "booking_success_rate"),
+            session_id=bench_run_id,
+            user_id="admin-lab",
+            trace_id=trace_id,
+            started_at_monotonic=t_booking_start,
+            ended_at_monotonic=time.monotonic(),
+            input_payload={"dataset": "booking_success.jsonl", "rows": len(booking_rows)},
+            output_payload={"success": booking_ok, "total": len(booking_rows)},
+            metadata={"status": "success", "level": "info"},
+            tags=["benchmark", "booking"],
         )
 
     def _metric(total: int, good: int, lat: list[float], details: list[dict[str, Any]], rate_key: str):
@@ -381,14 +514,27 @@ async def benchmark_run():
             "details": details,
         }
 
-    return {
+    benchmarks_payload: dict[str, Any] = {}
+    if "intent_routing_accuracy" in selected:
+        benchmarks_payload["intent_routing_accuracy"] = _metric(len(intent_rows), intent_hit, intent_lat, intent_details, "accuracy")
+    if "triage_quality_accuracy" in selected:
+        benchmarks_payload["triage_quality_accuracy"] = _metric(len(triage_rows), triage_hit, triage_lat, triage_details, "accuracy")
+    if "booking_success_rate" in selected:
+        benchmarks_payload["booking_success_rate"] = _metric(len(booking_rows), booking_ok, booking_lat, booking_details, "success_rate")
+
+    result_payload = {
         "generated_at_unix": int(time.time()),
-        "benchmarks": {
-            "intent_routing_accuracy": _metric(len(intent_rows), intent_hit, intent_lat, intent_details, "accuracy"),
-            "triage_quality_accuracy": _metric(len(triage_rows), triage_hit, triage_lat, triage_details, "accuracy"),
-            "booking_success_rate": _metric(len(booking_rows), booking_ok, booking_lat, booking_details, "success_rate"),
-        },
+        "dataset": dataset_name,
+        "selected_benchmarks": selected,
+        "benchmarks": benchmarks_payload,
     }
+    update_session_trace(
+        trace_id=trace_id,
+        output_payload=result_payload,
+        metadata={"status": "success", "level": "info"},
+        tags=["benchmark", "admin-lab", "success"],
+    )
+    return result_payload
 
 
 @router.get("/sessions/{session_id}/state")

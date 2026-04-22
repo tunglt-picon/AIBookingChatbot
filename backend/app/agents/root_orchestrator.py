@@ -22,7 +22,7 @@ from app.agents.state import AgentState
 from app.agents.llm_log_utils import format_llm_response_for_log, message_content_as_text
 from app.agents.llm_factory import get_root_llm
 from app.config import settings
-from app.observability.langfuse_client import get_langfuse_callback
+from app.observability.langfuse_client import build_session_trace_id, get_langfuse_callback
 
 logger = logging.getLogger(__name__)
 
@@ -363,7 +363,22 @@ Chỉ trả lời bằng MỘT nhãn: consultation | select_slot | confirm_appoi
 
 async def classify_intent_node(state: AgentState, config: RunnableConfig) -> dict:
     llm = get_root_llm()
-    callbacks = get_langfuse_callback(config)
+    session_id = str(state["session_id"])
+    user_id = str(state["patient_user_id"])
+    callbacks = get_langfuse_callback(
+        config,
+        trace_name="02.root.classify_intent",
+        session_id=session_id,
+        user_id=user_id,
+        trace_id=build_session_trace_id(session_id),
+        metadata={
+            "agent": "root",
+            "node": "classify_intent",
+            "follow_up_count": state.get("follow_up_count", 0),
+            "triage_complete": bool(state.get("triage_complete")),
+        },
+        tags=["root", "intent", "classification"],
+    )
 
     last_human = _last_human_text(state)
 
@@ -542,7 +557,23 @@ Quy định:
 
 async def root_respond_node(state: AgentState, config: RunnableConfig) -> dict:
     llm = get_root_llm()
-    callbacks = get_langfuse_callback(config)
+    session_id = str(state["session_id"])
+    user_id = str(state["patient_user_id"])
+    callbacks = get_langfuse_callback(
+        config,
+        trace_name="07.root.respond",
+        session_id=session_id,
+        user_id=user_id,
+        trace_id=build_session_trace_id(session_id),
+        metadata={
+            "agent": "root",
+            "node": "root_respond",
+            "intent": state.get("intent"),
+            "has_slots": bool(state.get("available_slots")),
+            "booking_confirmed": bool(state.get("booking_confirmed")),
+        },
+        tags=["root", "response", "chat-reply"],
+    )
     last_human = _last_human_text(state)
 
     if _looks_like_category_count_question(last_human):

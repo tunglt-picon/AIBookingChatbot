@@ -20,7 +20,7 @@ from app.agents.state import AgentState
 from app.agents.llm_log_utils import format_llm_response_for_log, message_content_as_text
 from app.agents.llm_factory import get_specialist_llm
 from app.config import settings
-from app.observability.langfuse_client import get_langfuse_callback
+from app.observability.langfuse_client import build_session_trace_id, get_langfuse_callback
 from app.services.triage_rubric_loader import format_rubric_prompt_excerpt
 
 logger = logging.getLogger(__name__)
@@ -370,7 +370,22 @@ def _suspected_category_for_follow_up(state: AgentState, last_human: str) -> str
 
 async def dental_specialist_node(state: AgentState, config: RunnableConfig) -> dict:
     llm = get_specialist_llm()
-    callbacks = get_langfuse_callback(config)
+    session_id = str(state["session_id"])
+    user_id = str(state["patient_user_id"])
+    callbacks = get_langfuse_callback(
+        config,
+        trace_name="03.specialist.triage",
+        session_id=session_id,
+        user_id=user_id,
+        trace_id=build_session_trace_id(session_id),
+        metadata={
+            "agent": "specialist",
+            "node": "dental_specialist",
+            "follow_up_count": state.get("follow_up_count", 0),
+            "max_follow_ups": settings.MAX_FOLLOW_UP_QUESTIONS,
+        },
+        tags=["specialist", "triage", "symptom-intake"],
+    )
 
     follow_up_count = state.get("follow_up_count", 0)
     force_conclusion = follow_up_count >= settings.MAX_FOLLOW_UP_QUESTIONS

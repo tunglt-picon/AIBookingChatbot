@@ -23,7 +23,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import settings
 from app.database import get_db
 from app.models.session import SenderType, SessionStatus
-from app.observability.langfuse_client import emit_langfuse_system_span
+from app.observability.langfuse_client import (
+    build_session_trace_id,
+    create_langfuse_span,
+    end_langfuse_span,
+    emit_langfuse_system_span,
+    ensure_session_trace,
+    update_session_trace,
+)
 from app.schemas.chat import SessionResponse, SessionWithMessages
 from app.services import auth_service, chat_service
 logger = logging.getLogger(__name__)
@@ -39,6 +46,55 @@ _GRAPH_NODES = frozenset({
     "confirm_booking",
     "root_respond",
 })
+
+
+def _content_to_text(content: object) -> str:
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        parts: list[str] = []
+        for block in content:
+            if isinstance(block, dict) and block.get("type") == "text":
+                parts.append(str(block.get("text", "")))
+            elif isinstance(block, str):
+                parts.append(block)
+        return "".join(parts)
+    return str(content or "")
+
+
+def _trim_text(text: str, limit: int = 1200) -> str:
+    if len(text) <= limit:
+        return text
+    return text[:limit] + "…"
+
+
+def _extract_prompt_preview(model_input: object) -> str:
+    """
+    Best-effort prompt preview from chat model input payload.
+    """
+    if model_input is None:
+        return ""
+    if isinstance(model_input, str):
+        return _trim_text(model_input, 1000)
+    if isinstance(model_input, list):
+        blocks: list[str] = []
+        for item in model_input[-10:]:
+            if isinstance(item, dict):
+                role = str(item.get("role") or item.get("type") or "msg")
+                text = _content_to_text(item.get("content")).strip()
+                if text:
+                    blocks.append(f"[{role}] {text}")
+            else:
+                text = _content_to_text(item).strip()
+                if text:
+                    blocks.append(text)
+        return _trim_text("\n".join(blocks), 1000)
+    if isinstance(model_input, dict):
+        if "messages" in model_input:
+            return _extract_prompt_preview(model_input.get("messages"))
+        if "input" in model_input:
+            return _extract_prompt_preview(model_input.get("input"))
+    return _trim_text(str(model_input), 1000)
 
 
 def _reply_from_final_state(vals: dict) -> tuple[str, str]:
@@ -175,6 +231,11 @@ async def send_message(
     await chat_service.save_message(
         db, session_id, SenderType.PATIENT_USER, message, None
     )
+    turn_index = await chat_service.count_messages_by_sender(
+        db=db,
+        session_id=session_id,
+        sender_type=SenderType.PATIENT_USER,
+    )
 
     preview = (message[:120] + "…") if len(message) > 120 else message
     logger.info(
@@ -190,6 +251,7 @@ async def send_message(
             session_id=session_id,
             patient_user_id=user.id,
             user_message=message,
+            turn_index=turn_index,
             db=db,
         ),
         media_type="text/event-stream",
@@ -224,6 +286,7 @@ async def _stream_agent_response(
     session_id: int,
     patient_user_id: int,
     user_message: str,
+    turn_index: int,
     db: AsyncSession,
 ):
     """
@@ -252,9 +315,48 @@ async def _stream_agent_response(
     intake_info = None
     event_counts: dict[str, int] = {}
     node_started_at: dict[str, float] = {}
+    node_inputs: dict[str, object] = {}
+    node_outputs: dict[str, object] = {}
+    node_llm_prompts: dict[str, str] = {}
+    node_llm_outputs: dict[str, str] = {}
     token_events = 0
     t_stream_start = time.monotonic()
+    trace_id = build_session_trace_id(session_id)
+    turn_id = f"{max(turn_index, 1):04d}"
+    turn_prefix = f"08.chat.turn.{turn_id}"
+    turn_span = None
     _debug_events_left = 120  # cap DEBUG lines per request
+    ensure_session_trace(
+        session_id=session_id,
+        user_id=str(patient_user_id),
+        input_payload={
+            "user_message": user_message,
+            "session_id": session_id,
+            "patient_user_id": patient_user_id,
+        },
+        metadata={
+            "flow": "chat-stream",
+            "llm_provider": settings.LLM_PROVIDER,
+            "status": "in_progress",
+            "level": "info",
+        },
+        tags=["chat", "session", settings.LLM_PROVIDER],
+    )
+    turn_span = create_langfuse_span(
+        trace_id=trace_id,
+        session_id=str(session_id),
+        user_id=str(patient_user_id),
+        span_name=f"{turn_prefix}.request",
+        input_payload={
+            "turn_id": turn_id,
+            "user_message": user_message,
+            "session_id": session_id,
+            "patient_user_id": patient_user_id,
+        },
+        metadata={"status": "in_progress", "level": "info"},
+        tags=["chat", "turn", "request", f"turn-{turn_id}"],
+    )
+    turn_span_id = str(getattr(turn_span, "id", "") or "")
 
     try:
         logger.info(
@@ -285,6 +387,7 @@ async def _stream_agent_response(
 
             if kind == "on_chain_start" and name in _GRAPH_NODES:
                 node_started_at[name] = time.monotonic()
+                node_inputs[name] = event.get("data", {}).get("input")
                 logger.info(
                     "[chat][graph] --> node START name=%s session_id=%s",
                     name,
@@ -294,14 +397,41 @@ async def _stream_agent_response(
             if kind == "on_chain_end" and name in _GRAPH_NODES:
                 node_end_t = time.monotonic()
                 node_start_t = node_started_at.get(name)
+                node_outputs[name] = event.get("data", {}).get("output")
                 if node_start_t is not None:
+                    llm_prompt = node_llm_prompts.get(name, "")
+                    llm_out = node_llm_outputs.get(name, "")
                     emit_langfuse_system_span(
-                        span_name=f"node:{name}",
+                        span_name=f"{turn_prefix}.graph.{name}",
                         session_id=str(session_id),
                         user_id=str(patient_user_id),
+                        trace_id=trace_id,
                         started_at_monotonic=node_start_t,
                         ended_at_monotonic=node_end_t,
-                        metadata={"scope": "langgraph-node"},
+                        input_payload={
+                            "node": name,
+                            "session_id": session_id,
+                            "turn_id": turn_id,
+                            "node_input": node_inputs.get(name),
+                            "user_message_preview": _trim_text(user_message, 300),
+                            "llm_prompt_preview": _trim_text(llm_prompt, 800) if llm_prompt else "",
+                        },
+                        output_payload={
+                            "node": name,
+                            "status": "success",
+                            "node_output": node_outputs.get(name),
+                            "llm_response_preview": _trim_text(llm_out, 800) if llm_out else "",
+                        },
+                        metadata={
+                            "scope": "langgraph-node",
+                            "event": "on_chain_end",
+                            "status": "success",
+                            "level": "info",
+                            "has_llm_prompt": bool(llm_prompt),
+                            "has_llm_response": bool(llm_out),
+                        },
+                        tags=["chat", "graph-node", name, f"turn-{turn_id}"],
+                        parent_observation_id=turn_span_id or None,
                     )
                 logger.info(
                     "[chat][graph] <-- node END name=%s session_id=%s",
@@ -321,6 +451,19 @@ async def _stream_agent_response(
                     yield _sse({"type": "status", "message": "Đang đặt lịch hẹn..."})
 
             # ── Stream LLM tokens ──────────────────────────────────────────
+            elif kind == "on_chat_model_start":
+                metadata = event.get("metadata", {}) or {}
+                node = metadata.get("langgraph_node", "") or ""
+                prompt_preview = _extract_prompt_preview(event.get("data", {}).get("input"))
+                if node in _GRAPH_NODES and prompt_preview:
+                    node_llm_prompts[node] = prompt_preview
+                    logger.info(
+                        "[chat][llm] on_chat_model_start session_id=%s node=%r prompt_preview=%r",
+                        session_id,
+                        node,
+                        _trim_text(prompt_preview, 300),
+                    )
+
             elif kind == "on_chat_model_stream":
                 chunk = event["data"].get("chunk")
                 if chunk and chunk.content:
@@ -347,17 +490,21 @@ async def _stream_agent_response(
 
             elif kind == "on_chat_model_end":
                 output = event.get("data", {}).get("output")
+                metadata = event.get("metadata", {}) or {}
+                node = metadata.get("langgraph_node", "") or ""
                 out_preview = ""
                 if output is not None:
                     content = getattr(output, "content", None)
-                    if isinstance(content, str):
-                        out_preview = (content[:200] + "…") if len(content) > 200 else content
-                    else:
+                    out_preview = _trim_text(_content_to_text(content), 500)
+                    if not out_preview:
                         out_preview = str(type(output))
+                if node in _GRAPH_NODES and out_preview:
+                    node_llm_outputs[node] = out_preview
                 logger.info(
-                    "[chat][llm] on_chat_model_end session_id=%s name=%r output_preview=%r",
+                    "[chat][llm] on_chat_model_end session_id=%s name=%r node=%r output_preview=%r",
                     session_id,
                     name,
+                    node,
                     out_preview,
                 )
 
@@ -372,16 +519,29 @@ async def _stream_agent_response(
 
         stream_elapsed = time.monotonic() - t_stream_start
         emit_langfuse_system_span(
-            span_name="chat_stream_turn",
+            span_name=f"{turn_prefix}.stream",
             session_id=str(session_id),
             user_id=str(patient_user_id),
+            trace_id=trace_id,
             started_at_monotonic=t_stream_start,
             ended_at_monotonic=time.monotonic(),
+            input_payload={
+                "user_message": user_message,
+                "session_id": session_id,
+            },
+            output_payload={
+                "token_events": token_events,
+                "event_counts": dict(sorted(event_counts.items(), key=lambda x: -x[1])[:15]),
+            },
             metadata={
                 "scope": "chat-api",
                 "token_events": token_events,
                 "event_kinds_seen": len(event_counts),
+                "status": "success",
+                "level": "info",
             },
+            tags=["chat", "stream", "turn", f"turn-{turn_id}"],
+            parent_observation_id=turn_span_id or None,
         )
 
         # ── Final state (always) ────────────────────────────────────────────
@@ -484,6 +644,36 @@ async def _stream_agent_response(
             "intake": intake_info,
             "ui": ui_payload,
         })
+        update_session_trace(
+            trace_id=trace_id,
+            output_payload={
+                "last_turn": {
+                    "turn_id": turn_id,
+                    "agent": current_agent,
+                    "full_response": full_response,
+                    "booking": booking_info,
+                    "intake": intake_info,
+                    "token_events": token_events,
+                }
+            },
+            metadata={
+                "status": "success",
+                "level": "info",
+                "event_counts": dict(sorted(event_counts.items(), key=lambda x: -x[1])[:15]),
+            },
+            tags=["chat", "session", "success"],
+        )
+        end_langfuse_span(
+            turn_span,
+            output_payload={
+                "turn_id": turn_id,
+                "agent": current_agent,
+                "reply": full_response,
+                "token_events": token_events,
+                "booking": booking_info,
+            },
+            metadata={"status": "success", "level": "info"},
+        )
 
     except Exception as exc:
         logger.exception(
@@ -491,6 +681,36 @@ async def _stream_agent_response(
             session_id,
             time.monotonic() - t_stream_start,
             exc,
+        )
+        update_session_trace(
+            trace_id=trace_id,
+            output_payload={
+                "last_turn": {
+                    "turn_id": turn_id,
+                    "error": str(exc),
+                    "session_id": session_id,
+                }
+            },
+            metadata={"status": "error", "level": "error"},
+            tags=["chat", "session", "error"],
+        )
+        emit_langfuse_system_span(
+            span_name=f"{turn_prefix}.error",
+            session_id=str(session_id),
+            user_id=str(patient_user_id),
+            trace_id=trace_id,
+            started_at_monotonic=t_stream_start,
+            ended_at_monotonic=time.monotonic(),
+            input_payload={"user_message": user_message, "session_id": session_id},
+            output_payload={"error": str(exc)},
+            metadata={"scope": "chat-api", "status": "error", "level": "error"},
+            tags=["chat", "error", f"turn-{turn_id}"],
+            parent_observation_id=turn_span_id or None,
+        )
+        end_langfuse_span(
+            turn_span,
+            output_payload={"turn_id": turn_id, "error": str(exc)},
+            metadata={"status": "error", "level": "error"},
         )
         yield _sse({"type": "error", "message": str(exc)})
 
