@@ -505,12 +505,17 @@ function labelInput(id, label, type, value, placeholder) {
   lab.setAttribute("for", id);
   let input;
   if (type === "textarea") {
-    input = el("textarea", "w-full min-h-[120px] bg-slate-950/50 border border-slate-600 rounded-xl px-3.5 py-3 text-sm text-slate-100 font-mono leading-relaxed focus:outline-none focus:ring-2 focus:ring-sky-500/40 focus:border-sky-500/50");
+    input = el("textarea", "w-full min-h-[120px] resize-y bg-slate-950/50 border border-slate-600 rounded-xl px-3.5 py-3 text-sm text-slate-100 font-mono leading-relaxed focus:outline-none focus:ring-2 focus:ring-sky-500/40 focus:border-sky-500/50");
     input.rows = 5;
     // JSON inputs nên cao hơn để giảm phải scroll khi test nhiều lượt.
     if (id === "state_patch" || id === "tool_args") {
       input.className = input.className.replace("min-h-[120px]", "min-h-[360px]");
       input.rows = 16;
+    }
+    // Benchmark rows thường dài; cho cao hơn để dễ quan sát toàn bộ JSON array.
+    if (id === "benchmark_rows") {
+      input.className = input.className.replace("min-h-[120px]", "min-h-[520px]");
+      input.rows = 24;
     }
   } else if (type === "number") {
     input = el("input", "w-full max-w-[12rem] bg-slate-950/50 border border-slate-600 rounded-xl px-3.5 py-2.5 text-sm text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-500/40 focus:border-sky-500/50");
@@ -927,7 +932,9 @@ document.addEventListener("DOMContentLoaded", () => {
       } else if (pack.type === "tool") {
         data = await AdminLabAPI.invokeTool(pack.body);
       } else if (pack.type === "benchmark") {
-        data = await AdminLabAPI.runBenchmark();
+        data = await AdminLabAPI.runBenchmark({
+          dataset: pack.body.dataset,
+        });
       } else {
         const s = pack.spec;
         if (s.id === "rest_slots") {
