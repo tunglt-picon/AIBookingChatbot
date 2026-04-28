@@ -605,6 +605,23 @@ function _fmtPct(v) {
   return `${(n * 100).toFixed(1)}%`;
 }
 
+function _pctToHue(value) {
+  const n = Math.max(0, Math.min(1, Number(value || 0)));
+  // 0 -> red(0), 1 -> green(120)
+  return Math.round(120 * n);
+}
+
+function _scoreBar(rate) {
+  const n = Math.max(0, Math.min(1, Number(rate || 0)));
+  const hue = _pctToHue(n);
+  const wrap = el("div", "mt-2 h-2 rounded-full bg-slate-800 overflow-hidden");
+  const fill = el("div", "h-full rounded-full");
+  fill.style.width = `${(n * 100).toFixed(1)}%`;
+  fill.style.backgroundColor = `hsl(${hue} 75% 45%)`;
+  wrap.appendChild(fill);
+  return wrap;
+}
+
 function benchmarksForDataset(datasetName) {
   const raw = String(datasetName || "").trim().toLowerCase().replace(/\.jsonl$/, "");
   if (raw === "intent_routing") return ["intent_routing_accuracy"];
@@ -628,16 +645,22 @@ function renderBenchmarkVisual(obj) {
     { key: "intent_routing_accuracy", label: "Intent accuracy", rate: "accuracy" },
     { key: "triage_quality_accuracy", label: "Triage accuracy", rate: "accuracy" },
   ];
-  cardSpec.forEach((spec) => {
+  const activeCards = cardSpec.filter((spec) => Object.prototype.hasOwnProperty.call(bm, spec.key));
+  activeCards.forEach((spec) => {
     const data = bm[spec.key] || {};
     const lat = data.latency_ms || {};
+    const rateVal = Number(data[spec.rate] || 0);
+    const hue = _pctToHue(rateVal);
     const wrap = el("div", "rounded-lg border border-slate-700 bg-slate-900/50 p-3");
     wrap.appendChild(el("p", "text-xs text-slate-400", spec.label));
-    wrap.appendChild(el("p", "text-lg font-semibold text-emerald-300", _fmtPct(data[spec.rate])));
+    const score = el("p", "text-lg font-semibold", _fmtPct(rateVal));
+    score.style.color = `hsl(${hue} 75% 62%)`;
+    wrap.appendChild(score);
     wrap.appendChild(el("p", "text-[11px] text-slate-500", `p50 ${lat.p50 ?? 0}ms · p95 ${lat.p95 ?? 0}ms`));
+    wrap.appendChild(_scoreBar(rateVal));
     cards.appendChild(wrap);
   });
-  root.appendChild(cards);
+  if (activeCards.length) root.appendChild(cards);
 
   const tableWrap = el("div", "rounded-lg border border-slate-700 overflow-x-auto");
   const table = el("table", "w-full text-xs text-left border-collapse min-w-[680px]");
@@ -664,8 +687,12 @@ function renderBenchmarkVisual(obj) {
     });
   }
 
-  pushRows("intent_routing_accuracy", "expected_intent", "predicted_intent");
-  pushRows("triage_quality_accuracy", "expected_category_code", "predicted_category_code");
+  if (Object.prototype.hasOwnProperty.call(bm, "intent_routing_accuracy")) {
+    pushRows("intent_routing_accuracy", "expected_intent", "predicted_intent");
+  }
+  if (Object.prototype.hasOwnProperty.call(bm, "triage_quality_accuracy")) {
+    pushRows("triage_quality_accuracy", "expected_category_code", "predicted_category_code");
+  }
 
   table.appendChild(tbody);
   tableWrap.appendChild(table);
