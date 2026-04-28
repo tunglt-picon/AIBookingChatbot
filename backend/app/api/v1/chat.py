@@ -97,6 +97,179 @@ def _extract_prompt_preview(model_input: object) -> str:
     return _trim_text(str(model_input), 1000)
 
 
+def _extract_message_text(msg: object) -> str:
+    """Best-effort text extraction from LangChain message-ish object."""
+    if msg is None:
+        return ""
+    if isinstance(msg, str):
+        # Often format: "content='...'" from repr(), keep concise.
+        if "content='" in msg:
+            try:
+                return msg.split("content='", 1)[1].split("'", 1)[0].strip()
+            except Exception:
+                return _trim_text(msg, 240)
+        return _trim_text(msg, 240)
+    content = getattr(msg, "content", None)
+    if content is not None:
+        return _trim_text(_content_to_text(content).strip(), 240)
+    if isinstance(msg, dict):
+        return _trim_text(_content_to_text(msg.get("content")).strip(), 240)
+    return _trim_text(str(msg), 240)
+
+
+def _extract_role(msg: object) -> str:
+    if isinstance(msg, dict):
+        return str(msg.get("role") or msg.get("type") or "").lower()
+    t = getattr(msg, "type", None)
+    if isinstance(t, str):
+        return t.lower()
+    return ""
+
+
+def _last_message_by_role(messages: list, wanted_role: str) -> str:
+    for m in reversed(messages):
+        role = _extract_role(m)
+        if not role and isinstance(m, str):
+            # Repr string fallback: detect specialist/ai roughly.
+            if wanted_role == "ai" and "name='specialist_agent'" in m:
+                return _extract_message_text(m)
+            if wanted_role == "human" and "name='specialist_agent'" not in m:
+                return _extract_message_text(m)
+            continue
+        if role in (wanted_role, "assistant" if wanted_role == "ai" else wanted_role):
+            return _extract_message_text(m)
+    return ""
+
+
+def _normalize_node_input_payload(
+    *,
+    node: str,
+    turn_id: str,
+    session_id: int,
+    patient_user_id: int,
+    raw_state: object,
+    user_message: str,
+    llm_prompt: str,
+) -> dict:
+    state = raw_state if isinstance(raw_state, dict) else {}
+    msgs = state.get("messages")
+    messages = msgs if isinstance(msgs, list) else []
+    last_human = _last_message_by_role(messages, "human") or _trim_text(user_message, 300)
+    last_ai = _last_message_by_role(messages, "ai") or None
+
+    if node == "classify_intent":
+        node_state = {
+            "intent": state.get("intent"),
+            "current_agent": state.get("current_agent"),
+            "skip_root_respond": state.get("skip_root_respond"),
+            "messages_count": len(messages),
+            "last_human_message": last_human or None,
+            "last_ai_message": last_ai,
+            "pending_confirmation_slot": state.get("pending_confirmation_slot"),
+            "triage_complete": state.get("triage_complete"),
+            "intake_id": state.get("intake_id"),
+            "category_code": state.get("category_code"),
+        }
+    elif node == "dental_specialist":
+        node_state = {
+            "intent": state.get("intent"),
+            "current_agent": state.get("current_agent"),
+            "specialist_concluded": state.get("specialist_concluded"),
+            "follow_up_count": state.get("follow_up_count"),
+            "category_code": state.get("category_code"),
+            "triage_complete": state.get("triage_complete"),
+            "symptoms_summary": _trim_text(str(state.get("symptoms_summary") or ""), 300) or None,
+            "last_agent_message": _trim_text(str(state.get("last_agent_message") or ""), 300) or None,
+            "messages_count": len(messages),
+            "last_human_message": last_human or None,
+            "last_ai_message": last_ai,
+        }
+    elif node == "root_respond":
+        available_slots = state.get("available_slots")
+        node_state = {
+            "intent": state.get("intent"),
+            "current_agent": state.get("current_agent"),
+            "skip_root_respond": state.get("skip_root_respond"),
+            "category_code": state.get("category_code"),
+            "available_slots_count": len(available_slots) if isinstance(available_slots, list) else None,
+            "selected_slot": state.get("selected_slot"),
+            "pending_confirmation_slot": state.get("pending_confirmation_slot"),
+            "booking_confirmed": state.get("booking_confirmed"),
+            "messages_count": len(messages),
+            "last_human_message": last_human or None,
+            "last_ai_message": last_ai,
+        }
+    else:
+        # Fallback cho các node hệ thống/tool: giữ gọn, ổn định.
+        node_state = {
+            "intent": state.get("intent"),
+            "current_agent": state.get("current_agent"),
+            "category_code": state.get("category_code"),
+            "triage_complete": state.get("triage_complete"),
+            "booking_confirmed": state.get("booking_confirmed"),
+            "reservation_id": state.get("reservation_id"),
+        }
+
+    return {
+        "node": node,
+        "turn_id": turn_id,
+        "session_id": session_id,
+        "patient_user_id": patient_user_id,
+        "user_message_preview": _trim_text(user_message, 300),
+        "llm_prompt_preview": _trim_text(llm_prompt, 800) if llm_prompt else "",
+        "state": node_state,
+    }
+
+
+def _normalize_node_output_payload(*, node: str, turn_id: str, raw_output: object, llm_out: str) -> dict:
+    out = raw_output if isinstance(raw_output, dict) else {}
+    if node == "classify_intent":
+        result = {
+            "intent": out.get("intent"),
+            "current_agent": out.get("current_agent"),
+            "skip_root_respond": out.get("skip_root_respond"),
+            "pending_confirmation_slot": out.get("pending_confirmation_slot"),
+        }
+    elif node == "dental_specialist":
+        result = {
+            "specialist_concluded": out.get("specialist_concluded"),
+            "follow_up_count": out.get("follow_up_count"),
+            "category_code": out.get("category_code"),
+            "triage_complete": out.get("triage_complete"),
+            "symptoms_summary": _trim_text(str(out.get("symptoms_summary") or ""), 300) or None,
+            "ai_diagnosis": _trim_text(str(out.get("ai_diagnosis") or ""), 300) or None,
+            "last_agent_message": _trim_text(str(out.get("last_agent_message") or ""), 300) or None,
+        }
+    elif node == "root_respond":
+        available_slots = out.get("available_slots")
+        result = {
+            "current_agent": out.get("current_agent"),
+            "skip_root_respond": out.get("skip_root_respond"),
+            "available_slots_count": len(available_slots) if isinstance(available_slots, list) else None,
+            "selected_slot": out.get("selected_slot"),
+            "pending_confirmation_slot": out.get("pending_confirmation_slot"),
+            "booking_confirmed": out.get("booking_confirmed"),
+            "last_agent_message": _trim_text(str(out.get("last_agent_message") or ""), 300) or None,
+            "has_message_ui": bool((out.get("extra") or {}).get("message_ui")) if isinstance(out.get("extra"), dict) else None,
+        }
+    else:
+        result = {
+            "intent": out.get("intent"),
+            "category_code": out.get("category_code"),
+            "triage_complete": out.get("triage_complete"),
+            "intake_id": out.get("intake_id"),
+            "booking_confirmed": out.get("booking_confirmed"),
+            "reservation_id": out.get("reservation_id"),
+        }
+    return {
+        "node": node,
+        "turn_id": turn_id,
+        "status": "success",
+        "llm_response_preview": _trim_text(llm_out, 800) if llm_out else "",
+        "result": result,
+    }
+
+
 def _reply_from_final_state(vals: dict) -> tuple[str, str]:
     """
     When LangGraph/Ollama does not emit on_chat_model_stream, the UI still needs text.
@@ -408,20 +581,21 @@ async def _stream_agent_response(
                         trace_id=trace_id,
                         started_at_monotonic=node_start_t,
                         ended_at_monotonic=node_end_t,
-                        input_payload={
-                            "node": name,
-                            "session_id": session_id,
-                            "turn_id": turn_id,
-                            "node_input": node_inputs.get(name),
-                            "user_message_preview": _trim_text(user_message, 300),
-                            "llm_prompt_preview": _trim_text(llm_prompt, 800) if llm_prompt else "",
-                        },
-                        output_payload={
-                            "node": name,
-                            "status": "success",
-                            "node_output": node_outputs.get(name),
-                            "llm_response_preview": _trim_text(llm_out, 800) if llm_out else "",
-                        },
+                        input_payload=_normalize_node_input_payload(
+                            node=name,
+                            turn_id=turn_id,
+                            session_id=session_id,
+                            patient_user_id=patient_user_id,
+                            raw_state=node_inputs.get(name),
+                            user_message=user_message,
+                            llm_prompt=llm_prompt,
+                        ),
+                        output_payload=_normalize_node_output_payload(
+                            node=name,
+                            turn_id=turn_id,
+                            raw_output=node_outputs.get(name),
+                            llm_out=llm_out,
+                        ),
                         metadata={
                             "scope": "langgraph-node",
                             "event": "on_chain_end",
