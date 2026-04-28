@@ -164,6 +164,10 @@ class BenchmarkRunBody(BaseModel):
         default=None,
         description="intent_routing_accuracy | triage_quality_accuracy | booking_success_rate",
     )
+    rows: Optional[list[dict[str, Any]]] = Field(
+        default=None,
+        description="Rows override từ UI; khi có sẽ ưu tiên dùng thay vì đọc file dataset tương ứng.",
+    )
 
 
 def _eval_dataset_dir() -> Path:
@@ -316,6 +320,9 @@ async def benchmark_dataset_save(dataset_name: str, body: DatasetSaveBody):
 async def benchmark_run(body: BenchmarkRunBody):
     dataset_name = _normalize_dataset_name(body.dataset)
     selected = _selected_benchmarks(dataset_name, body.benchmarks)
+    ui_rows = body.rows if isinstance(body.rows, list) else []
+    if ui_rows and not all(isinstance(r, dict) for r in ui_rows):
+        raise HTTPException(status_code=400, detail="rows phải là mảng object JSON.")
     patient_user_id = await _resolve_benchmark_patient_user_id()
     bench_run_id = f"benchmark-{int(time.time())}"
     trace_id = build_session_trace_id(bench_run_id)
@@ -325,6 +332,7 @@ async def benchmark_run(body: BenchmarkRunBody):
         input_payload={
             "dataset": dataset_name,
             "benchmarks": selected,
+            "ui_rows_count": len(ui_rows),
             "patient_user_id": patient_user_id,
         },
         metadata={"flow": "admin-benchmark", "status": "in_progress", "level": "info"},
@@ -336,7 +344,8 @@ async def benchmark_run(body: BenchmarkRunBody):
     intent_lat: list[float] = []
     intent_details: list[dict[str, Any]] = []
     if "intent_routing_accuracy" in selected:
-        intent_rows = _read_jsonl(_eval_dataset_path("intent_routing.jsonl"))
+        use_ui_rows = bool(ui_rows) and dataset_name == "intent_routing"
+        intent_rows = ui_rows if use_ui_rows else _read_jsonl(_eval_dataset_path("intent_routing.jsonl"))
         t_intent_start = time.monotonic()
         for i, row in enumerate(intent_rows, start=1):
             state = _default_agent_state(
@@ -370,7 +379,7 @@ async def benchmark_run(body: BenchmarkRunBody):
             trace_id=trace_id,
             started_at_monotonic=t_intent_start,
             ended_at_monotonic=time.monotonic(),
-            input_payload={"dataset": "intent_routing.jsonl", "rows": len(intent_rows)},
+            input_payload={"dataset": "intent_routing.jsonl", "rows": len(intent_rows), "source": "ui_rows" if use_ui_rows else "dataset_file"},
             output_payload={"correct": intent_hit, "total": len(intent_rows)},
             metadata={"status": "success", "level": "info"},
             tags=["benchmark", "intent"],
@@ -381,7 +390,8 @@ async def benchmark_run(body: BenchmarkRunBody):
     triage_lat: list[float] = []
     triage_details: list[dict[str, Any]] = []
     if "triage_quality_accuracy" in selected:
-        triage_rows = _read_jsonl(_eval_dataset_path("triage_quality.jsonl"))
+        use_ui_rows = bool(ui_rows) and dataset_name == "triage_quality"
+        triage_rows = ui_rows if use_ui_rows else _read_jsonl(_eval_dataset_path("triage_quality.jsonl"))
         t_triage_start = time.monotonic()
         for i, row in enumerate(triage_rows, start=1):
             messages = [{"role": "human", "content": m} for m in (row.get("messages") or [])]
@@ -420,7 +430,7 @@ async def benchmark_run(body: BenchmarkRunBody):
             trace_id=trace_id,
             started_at_monotonic=t_triage_start,
             ended_at_monotonic=time.monotonic(),
-            input_payload={"dataset": "triage_quality.jsonl", "rows": len(triage_rows)},
+            input_payload={"dataset": "triage_quality.jsonl", "rows": len(triage_rows), "source": "ui_rows" if use_ui_rows else "dataset_file"},
             output_payload={"correct": triage_hit, "total": len(triage_rows)},
             metadata={"status": "success", "level": "info"},
             tags=["benchmark", "triage"],

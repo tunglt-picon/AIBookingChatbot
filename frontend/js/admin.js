@@ -605,6 +605,13 @@ function _fmtPct(v) {
   return `${(n * 100).toFixed(1)}%`;
 }
 
+function benchmarksForDataset(datasetName) {
+  const raw = String(datasetName || "").trim().toLowerCase().replace(/\.jsonl$/, "");
+  if (raw === "intent_routing") return ["intent_routing_accuracy"];
+  if (raw === "triage_quality") return ["triage_quality_accuracy"];
+  return ["intent_routing_accuracy", "triage_quality_accuracy"];
+}
+
 function renderBenchmarkVisual(obj) {
   const root = $("benchmark-visual");
   if (!root) return;
@@ -931,7 +938,8 @@ document.addEventListener("DOMContentLoaded", () => {
       } else if (pack.type === "benchmark") {
         data = await AdminLabAPI.runBenchmark({
           dataset: pack.body.dataset,
-          benchmarks: ["intent_routing_accuracy", "triage_quality_accuracy"],
+          rows: pack.body.rows,
+          benchmarks: benchmarksForDataset(pack.body.dataset),
         });
       } else {
         const s = pack.spec;
