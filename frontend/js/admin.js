@@ -5,15 +5,15 @@
 const $ = (id) => document.getElementById(id);
 
 const LAB_SLOT_MOCK = {
-  datetime_str: "2026-04-20T09:00:00+00:00",
-  display: "Thứ 2, 20/04 – 09:00 (30p · Trám răng / Phục hồi thẩm mỹ)",
+  datetime_str: "2026-04-27T09:00:00+00:00",
+  display: "Thứ 2, 27/04 – 09:00 (30p · Trám răng / Phục hồi thẩm mỹ)",
   time_hm: "09:00",
   duration_minutes: 30,
   category_code: "CAT-01",
 };
 
 const LAB_PERSONA_LINE =
-  "Bệnh nhân mẫu: chị Lan — đau răng hàm dưới phải vài ngày, nhói khi uống lạnh, muốn đặt lịch (mock tuần 20–24/04/2026).";
+  "Bệnh nhân mẫu: chị Lan — đau răng hàm dưới phải vài ngày, nhói khi uống lạnh, muốn đặt lịch (mock tuần 27/04–01/05/2026).";
 
 const BOOKING_FLOW_STEPS = [
   "Tin nhắn BN → classify_intent: consultation | select_slot | confirm_appointment | general.",
@@ -198,22 +198,22 @@ const TOOLS = [
     subtitle: "Đọc file lich_trong_tuan_trong_vi.json",
     inputDoc: [
       'scope: "day" | "week".',
-      '{ "scope": "day", "date_str": "2026-04-20", "category_code": "CAT-01" }',
+      '{ "scope": "day", "date_str": "2026-04-27", "category_code": "CAT-01" }',
       '{ "scope": "week", "category_code": "CAT-05" }',
     ],
     outputDoc: [
       "day: scope, ok, date, category_code, slots[].",
       "week: scope, ok, meta, ngay[].",
     ],
-    defaultArgs: '{\n  "scope": "day",\n  "date_str": "2026-04-20",\n  "category_code": "CAT-01"\n}',
+    defaultArgs: '{\n  "scope": "day",\n  "date_str": "2026-04-27",\n  "category_code": "CAT-01"\n}',
   },
   {
     id: "book_appointment",
     title: "book_appointment",
     subtitle: "Tool – ghi Reservation (dev: không JWT)",
-    inputDoc: ['{ "patient_user_id": 1, "intake_id": 1, "datetime_str": "2026-04-20T09:00:00+00:00" }'],
+    inputDoc: ['{ "patient_user_id": 1, "intake_id": 1, "datetime_str": "2026-04-27T09:00:00+00:00" }'],
     outputDoc: ["reservation_id, datetime_str, display, status hoặc error."],
-    defaultArgs: '{\n  "patient_user_id": 1,\n  "intake_id": 1,\n  "datetime_str": "2026-04-20T09:00:00+00:00"\n}',
+    defaultArgs: '{\n  "patient_user_id": 1,\n  "intake_id": 1,\n  "datetime_str": "2026-04-27T09:00:00+00:00"\n}',
   },
   {
     id: "save_consult_intake",
@@ -227,9 +227,9 @@ const TOOLS = [
     id: "resolve_requested_slot",
     title: "resolve_requested_slot",
     subtitle: "Hàm Python – khớp giờ xin với lưới slot",
-    inputDoc: ['{ "date_iso": "2026-04-20", "hour": 9, "minute": 0, "category_code": "CAT-01" }'],
+    inputDoc: ['{ "date_iso": "2026-04-27", "hour": 9, "minute": 0, "category_code": "CAT-01" }'],
     outputDoc: ["kind: exact_available | suggest | closed; slot hoặc alternatives."],
-    defaultArgs: '{\n  "date_iso": "2026-04-20",\n  "hour": 9,\n  "minute": 0,\n  "category_code": "CAT-01"\n}',
+    defaultArgs: '{\n  "date_iso": "2026-04-27",\n  "hour": 9,\n  "minute": 0,\n  "category_code": "CAT-01"\n}',
   }
 ];
 
@@ -241,7 +241,7 @@ const REST = [
     inputDoc: ["Query: date (YYYY-MM-DD), case (CAT-01→05)."],
     outputDoc: ["SlotsResponse: date, category_code, slots[]."],
     fields: [
-      { name: "date", type: "text", placeholder: "2026-04-20", label: "date" },
+      { name: "date", type: "text", placeholder: "2026-04-27", label: "date" },
       { name: "case", type: "text", placeholder: "CAT-01", label: "case" },
     ],
   },
@@ -253,7 +253,7 @@ const REST = [
     outputDoc: ["Payload build_week_availability_payload."],
     fields: [
       { name: "case", type: "text", placeholder: "CAT-01 hoặc để trống", label: "case" },
-      { name: "week_start", type: "text", placeholder: "2026-04-20", label: "week_start" },
+      { name: "week_start", type: "text", placeholder: "2026-04-27", label: "week_start" },
     ],
   },
   {
@@ -279,7 +279,6 @@ const BENCHMARKS = [
     outputDoc: [
       "intent_routing_accuracy.accuracy",
       "triage_quality_accuracy.accuracy",
-      "booking_success_rate.success_rate",
       "latency_ms.avg/p50/p95 + details từng case",
     ],
   },
@@ -617,11 +616,10 @@ function renderBenchmarkVisual(obj) {
   }
   root.classList.remove("hidden");
 
-  const cards = el("div", "grid grid-cols-1 md:grid-cols-3 gap-2");
+  const cards = el("div", "grid grid-cols-1 md:grid-cols-2 gap-2");
   const cardSpec = [
     { key: "intent_routing_accuracy", label: "Intent accuracy", rate: "accuracy" },
     { key: "triage_quality_accuracy", label: "Triage accuracy", rate: "accuracy" },
-    { key: "booking_success_rate", label: "Booking success", rate: "success_rate" },
   ];
   cardSpec.forEach((spec) => {
     const data = bm[spec.key] || {};
@@ -661,7 +659,6 @@ function renderBenchmarkVisual(obj) {
 
   pushRows("intent_routing_accuracy", "expected_intent", "predicted_intent");
   pushRows("triage_quality_accuracy", "expected_category_code", "predicted_category_code");
-  pushRows("booking_success_rate", "id", "reservation_id");
 
   table.appendChild(tbody);
   tableWrap.appendChild(table);
@@ -934,6 +931,7 @@ document.addEventListener("DOMContentLoaded", () => {
       } else if (pack.type === "benchmark") {
         data = await AdminLabAPI.runBenchmark({
           dataset: pack.body.dataset,
+          benchmarks: ["intent_routing_accuracy", "triage_quality_accuracy"],
         });
       } else {
         const s = pack.spec;

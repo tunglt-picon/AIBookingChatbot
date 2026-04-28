@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Sinh file mock: lich_trong_tuan_trong_vi.json
-Tuần 20/04/2026 (Thứ 2) → 24/04/2026 (Thứ 6)
+Tuần 27/04/2026 (Thứ 2) → 01/05/2026 (Thứ 6)
 
 Chạy: python3 scripts/generate_lich_trong_tuan_json.py
 """
@@ -21,8 +21,34 @@ from app.domain.dental_cases import (
 
 VI_DAYS = ("Thứ 2", "Thứ 3", "Thứ 4", "Thứ 5", "Thứ 6", "Thứ 7", "CN")
 
-WEEK_START = date(2026, 4, 20)
+WEEK_START = date(2026, 4, 27)
 WEEK_DAYS = 5
+
+# CAT-05 dùng bước 20p từ 13:30 → không có mốc 15:00 theo lưới; thêm một khung cho benchmark intent-08.
+_EXTRA_CAT05_INTENT08_DAY = date(2026, 4, 30)
+_EXTRA_CAT05_INTENT08_START_MINUTES = 15 * 60
+
+
+def _inject_cat05_slot_benchmark_eval(days_out: list) -> None:
+    """Chèn 15:00; bỏ mốc 14:50 cùng ngày để không chồng ca 20p."""
+    for day in days_out:
+        if date.fromisoformat(day["date_iso"]) != _EXTRA_CAT05_INTENT08_DAY:
+            continue
+        base = datetime(
+            _EXTRA_CAT05_INTENT08_DAY.year,
+            _EXTRA_CAT05_INTENT08_DAY.month,
+            _EXTRA_CAT05_INTENT08_DAY.day,
+            tzinfo=timezone.utc,
+        )
+        lst = day["theo_loai_kham"]["CAT-05"]
+        lst[:] = [
+            s for s in lst if s.get("time_hm") not in ("14:50", "15:10")
+        ]
+        if any(s.get("time_hm") == "15:00" for s in lst):
+            break
+        lst.append(build_slot_dict(base, _EXTRA_CAT05_INTENT08_START_MINUTES, "CAT-05"))
+        lst.sort(key=lambda s: s["datetime_str"])
+        break
 
 
 def main():
@@ -49,6 +75,8 @@ def main():
             "la_ngay_lam_viec_phong_kham": is_working,
             "theo_loai_kham": by_category,
         })
+
+    _inject_cat05_slot_benchmark_eval(days_out)
 
     payload = {
         "meta": {

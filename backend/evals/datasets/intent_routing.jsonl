@@ -1,8 +1,8 @@
 {"id": "intent-01", "message": "Tôi bị đau răng hàm dưới, nhức khi ăn đồ lạnh", "expected_intent": "consultation"}
 {"id": "intent-02", "message": "Chào bạn, phòng khám làm việc đến mấy giờ?", "expected_intent": "general"}
 {"id": "intent-03", "message": "Tôi muốn đặt lịch khám thứ 4 tuần này", "expected_intent": "select_slot", "state_patch": {"triage_complete": true, "category_code": "CAT-01", "intake_id": 10}}
-{"id": "intent-04", "message": "Ok chốt lịch đó giúp tôi", "expected_intent": "confirm_appointment", "state_patch": {"pending_confirmation_slot": {"display": "Thứ 3, 22/04 - 14:00", "datetime_str": "2026-04-22T14:00:00", "category_code": "CAT-01"}}}
+{"id": "intent-04", "message": "Ok chốt lịch đó giúp tôi", "expected_intent": "confirm_appointment", "state_patch": {"pending_confirmation_slot": {"display": "Thứ 3, 28/04 - 14:00", "datetime_str": "2026-04-28T14:00:00", "category_code": "CAT-01"}}}
 {"id": "intent-05", "message": "Tôi muốn đặt lịch nhưng chưa nói triệu chứng", "expected_intent": "consultation"}
 {"id": "intent-06", "message": "Cho tôi hỏi địa chỉ phòng khám ở đâu", "expected_intent": "general"}
 {"id": "intent-07", "message": "Mình rảnh thứ 5, chọn giờ khám giúp", "expected_intent": "select_slot", "state_patch": {"triage_complete": true, "category_code": "CAT-05", "intake_id": 11}}
-{"id": "intent-08", "message": "Đồng ý đặt khung 15:00 đó", "expected_intent": "confirm_appointment", "state_patch": {"pending_confirmation_slot": {"display": "Thứ 5, 24/04 - 15:00", "datetime_str": "2026-04-24T15:00:00", "category_code": "CAT-05"}}}
+{"id": "intent-08", "message": "Đồng ý đặt khung 15:00 đó", "expected_intent": "confirm_appointment", "state_patch": {"pending_confirmation_slot": {"display": "Thứ 5, 30/04 - 15:00", "datetime_str": "2026-04-30T15:00:00", "category_code": "CAT-05"}}}

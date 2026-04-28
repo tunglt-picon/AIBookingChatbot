@@ -12,7 +12,7 @@ Traces are grouped per session (session_id = LangGraph thread_id).
 """
 
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
 
 from langchain_core.runnables import RunnableConfig
@@ -351,6 +351,15 @@ def emit_langfuse_system_span(
 
     try:
         resolved_trace_id = trace_id or build_session_trace_id(session_id)
+        # Neo end_time = "bây giờ"; start_time lùi theo độ dài đo bằng monotonic.
+        # (Trước đây gọi datetime.now() hai lần liên tiếp → Langfuse luôn ~0s.)
+        end_wall = datetime.now(timezone.utc)
+        if started_at_monotonic is not None and ended_at_monotonic is not None:
+            duration_sec = max(float(ended_at_monotonic - started_at_monotonic), 0.0)
+            start_wall = end_wall - timedelta(seconds=duration_sec)
+        else:
+            start_wall = end_wall
+
         # Langfuse Python SDK v2 style.
         trace = client.trace(
             id=resolved_trace_id,
@@ -362,7 +371,7 @@ def emit_langfuse_system_span(
         normalized_tags = normalize_tags(tags)
         span_kwargs: dict[str, Any] = {
             "name": span_name,
-            "start_time": datetime.now(timezone.utc),
+            "start_time": start_wall,
             "input": _safe_json_value(input_payload),
             "metadata": payload_meta,
             "tags": normalized_tags or None,
@@ -375,7 +384,7 @@ def emit_langfuse_system_span(
             span_kwargs.pop("tags", None)
             span = trace.span(**span_kwargs)
         span.end(
-            end_time=datetime.now(timezone.utc),
+            end_time=end_wall,
             output=_safe_json_value(output_payload),
             metadata=payload_meta,
         )

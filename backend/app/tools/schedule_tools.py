@@ -165,7 +165,7 @@ def infer_date_strs_from_user_text(user_text: str) -> list[str]:
     seen: set[str] = set()
 
     # Ưu tiên parse ngày dạng dd/mm từ chip datetime_chips
-    # (vd: "Thứ 6, 24/04 14:00 ...") để tránh lệch ngày khi chọn nhiều ngày.
+    # (vd: "Thứ 6, 01/05 14:00 ...") để tránh lệch ngày khi chọn nhiều ngày.
     for m in re.finditer(r"\b(\d{1,2})/(\d{1,2})\b", low):
         try:
             dd = int(m.group(1))

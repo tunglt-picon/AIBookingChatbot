@@ -422,10 +422,10 @@ Authorization: Bearer <token>
 
 ```bash
 # Slot trống theo ngày + category — JWT not required in dev
-GET /api/v1/schedule/slots?date=2026-04-21&case=CAT-01
+GET /api/v1/schedule/slots?date=2026-04-28&case=CAT-01
 
 # Lịch cả tuần
-GET /api/v1/schedule/week/slots?case=CAT-02&week_start=2026-04-20
+GET /api/v1/schedule/week/slots?case=CAT-02&week_start=2026-04-27
 
 GET /api/v1/schedule/reservations
 Authorization: Bearer <token>
@@ -453,7 +453,7 @@ GET  /api/v1/admin/lab/triage-rubric
   "agent": "specialist",
   "booking": {
     "reservation_id": 5,
-    "selected_slot": "14:00, 21/04/2026"
+    "selected_slot": "14:00, 28/04/2026"
   },
   "intake": {
     "intake_id": 3,
